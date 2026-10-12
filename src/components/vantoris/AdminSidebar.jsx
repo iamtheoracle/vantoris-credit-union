@@ -34,6 +34,7 @@ const DOMAIN_CONFIG = {
       {
         label: 'Operations',
         items: [
+          { label: 'Approvals', path: '/operations/approvals', icon: Gavel },
           { label: 'Pending Applications', path: '/operations/applications', icon: FileText },
           { label: 'Accounts', path: '/operations/accounts', icon: Wallet },
           { label: 'Pending Deposits', path: '/operations/deposits', icon: ArrowDownToLine },

@@ -117,6 +117,7 @@ const HeroBoxAdminProducts = React.lazy(() => import('./pages/operations/HeroBox
 const HeroBoxAdminOrders = React.lazy(() => import('./pages/operations/HeroBoxAdminOrders'));
 const HeroBoxFundsShipping = React.lazy(() => import('./pages/operations/HeroBoxFundsShipping'));
 const DiscoveryNetwork = React.lazy(() => import('./pages/operations/DiscoveryNetwork'));
+const Approvals = React.lazy(() => import('./pages/operations/Approvals'));
 const HumanitarianCases = React.lazy(() => import('./pages/operations/HumanitarianCases'));
 
 const LoadingFallback = () => (
@@ -228,6 +229,7 @@ const AuthenticatedApp = () => {
                 <Route path="/operations/humanitarian-cases" element={<HumanitarianCases />} />
                 <Route path="/operations/organizations" element={<Organizations />} />
                 <Route path="/operations/finance" element={<Finance />} />
+                <Route path="/operations/approvals" element={<Approvals />} />
                 <Route path="/operations/deposits" element={<Deposits />} />
                 <Route path="/operations/transfers" element={<Transfers />} />
                 <Route path="/operations/documents" element={<OperationsDocuments />} />

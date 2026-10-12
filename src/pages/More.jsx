@@ -101,6 +101,9 @@ export default function More() {
         </div>
       </motion.div>
 
+      {(isSuperAdmin(user) || /admin|operator|executive|operations/i.test(user?.role || '')) && (
+        <button onClick={() => navigate('/operations/approvals')} className="mb-4 w-full rounded-2xl bg-navy px-4 py-3 text-left text-sm font-semibold text-white">Operator approvals</button>
+      )}
       {SECTIONS.map((section, sIdx) => (
         <motion.div key={section.title} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: sIdx * 0.05 }} className="mb-5">
           <h2 className="text-foreground font-semibold text-sm mb-3 px-1">{section.title}</h2>
