@@ -5,7 +5,7 @@
   NODE_VERSION = "20"
   VITE_BASE44_APP_ID = "6a3d85c1632966fefe16f3d4"
   VITE_BASE44_SERVER_URL = "https://vantoris.base44.app"
-  VITE_BASE44_APP_BASE_URL = "https://vantoris-platform.netlify.app"
+  VITE_BASE44_APP_BASE_URL = "https://vantoris-xmoney.netlify.app"
 [functions]
   directory = "netlify/functions"
 [[redirects]]

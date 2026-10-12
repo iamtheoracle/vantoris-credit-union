@@ -44,7 +44,7 @@ export const PROVIDERS = {
   marketplace: { id: 'marketplace', label: 'HeroBox marketplace', status: PROVIDER_STATUS.NOT_CONFIGURED, note: 'Catalog prices require a merchant feed. Sample prices are not shown.' },
   shipping: { id: 'shipping', label: 'Shipping', status: PROVIDER_STATUS.NOT_CONFIGURED, note: 'Carrier rating is not connected. Shipping quotes are not estimated.' },
   donations: { id: 'donations', label: 'Giving', status: PROVIDER_STATUS.NOT_CONFIGURED, note: 'No donation processor connected. External redirects are not used as a substitute checkout.' },
-  news: { id: 'news', label: 'News', status: PROVIDER_STATUS.NOT_CONFIGURED, note: 'No licensed news feed connected. Stories are not written in-product.' },
+  news: { id: 'news', label: 'News', status: PROVIDER_STATUS.CONNECTED, note: 'BBC Business headlines and ECB USD rates. Licensed full feed is not connected.' },
   identity: { id: 'identity', label: 'Identity', status: PROVIDER_STATUS.CONNECTED, note: 'Member session comes from the connected auth provider.' },
 };
 
