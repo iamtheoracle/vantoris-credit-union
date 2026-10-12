@@ -4,22 +4,24 @@ import { Link } from 'react-router-dom';
 import { FileText, ArrowUpRight, ShieldCheck, ChevronRight } from 'lucide-react';
 
 export default function PendingApprovalsWidget() {
-  const [data, setData] = useState({ apps: 0, withdrawals: 0, verifications: 0, kyc: 0 });
+  const [data, setData] = useState({ apps: 0, withdrawals: 0, verifications: 0, kyc: 0, pay: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [apps, withdrawals, verifications] = await Promise.all([
+        const [apps, withdrawals, verifications, txns] = await Promise.all([
           base44.entities.Application.list('-created_date', 100),
           base44.entities.WithdrawalRequest.filter({ status: 'pending' }),
           base44.entities.VerificationRequest.filter({ status: 'pending' }),
+          base44.entities.Transaction.list('-created_date', 100).catch(() => []),
         ]);
         setData({
           apps: apps.filter(a => a.application_status === 'pending').length,
           withdrawals: withdrawals.length,
           verifications: verifications.length,
           kyc: apps.filter(a => a.kyc_status === 'pending').length,
+          pay: (Array.isArray(txns) ? txns : []).filter(t => ['pending', 'requested', 'review'].includes(String(t.status || '').toLowerCase())).length,
         });
       } catch (e) { console.error(e); }
       setLoading(false);
@@ -31,6 +33,7 @@ export default function PendingApprovalsWidget() {
 
   const items = [
     { label: 'Applications', count: data.apps, path: '/operations/applications', icon: FileText, accent: 'text-brass' },
+    { label: 'Pay requests', count: data.pay, path: '/operations/approvals', icon: ArrowUpRight, accent: 'text-crimson' },
     { label: 'Withdrawals', count: data.withdrawals, path: '/operations/withdrawals', icon: ArrowUpRight, accent: 'text-crimson' },
     { label: 'Verifications', count: data.verifications, path: '/operations/verification-requests', icon: ShieldCheck, accent: 'text-brass' },
     { label: 'KYC Reviews', count: data.kyc, path: '/operations/kyc', icon: ShieldCheck, accent: 'text-mint' },

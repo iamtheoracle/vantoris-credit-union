@@ -1,12 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import OperationsPageLayout from '@/components/vantoris/OperationsPageLayout';
-import { Bell, Search } from 'lucide-react';
+import { Bell, Search, Check, X } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function OperationsNotifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [busy, setBusy] = useState('');
+  const { toast } = useToast();
+
+  async function decide(note, approved) {
+    setBusy(note.id);
+    try {
+      const txnId = (String(note.message || '').match(/txn:([A-Za-z0-9_-]+)/) || [])[1];
+      if (txnId) {
+        const txn = await base44.entities.Transaction.get(txnId).catch(() => null);
+        if (txn) {
+          if (approved && txn.account_id) {
+            const account = await base44.entities.Account.get(txn.account_id).catch(() => null);
+            const value = Math.abs(Number(txn.amount) || 0);
+            const credit = txn.type === 'deposit' || Number(txn.amount) > 0;
+            const next = account ? Math.round(((Number(account.balance) || 0) + (credit ? value : -value)) * 100) / 100 : null;
+            if (account && next != null) await base44.entities.Account.update(account.id, { balance: next });
+            await base44.entities.Transaction.update(txn.id, { status: 'approved', balance_after: next });
+          } else {
+            await base44.entities.Transaction.update(txn.id, { status: 'declined' });
+          }
+        }
+      }
+      await base44.entities.Notification.update(note.id, { status: approved ? 'approved' : 'declined' });
+      setNotifications((rows) => rows.map((row) => row.id === note.id ? { ...row, status: approved ? 'approved' : 'declined' } : row));
+      toast({ title: approved ? 'Approved' : 'Declined' });
+    } catch (e) {
+      toast({ title: 'Action failed', description: e.message || 'The backend rejected this decision.', variant: 'destructive' });
+    } finally {
+      setBusy('');
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -48,6 +80,7 @@ export default function OperationsNotifications() {
                   <th className="text-left text-[#AAB4C3] text-xs font-medium uppercase tracking-wider px-5 py-3">Message</th>
                   <th className="text-left text-[#AAB4C3] text-xs font-medium uppercase tracking-wider px-5 py-3">Type</th>
                   <th className="text-left text-[#AAB4C3] text-xs font-medium uppercase tracking-wider px-5 py-3">Date</th>
+                  <th className="text-left text-[#AAB4C3] text-xs font-medium uppercase tracking-wider px-5 py-3">Decision</th>
                 </tr>
               </thead>
               <tbody>
@@ -63,7 +96,16 @@ export default function OperationsNotifications() {
                         'bg-[#242D38] text-[#AAB4C3]'
                       }`}>{n.type}</span>
                     </td>
-                    <td className="px-5 py-4 text-[#AAB4C3] text-xs">{n.created_date.split('T')[0]}</td>
+                    <td className="px-5 py-4 text-[#AAB4C3] text-xs">{n.created_date?.split('T')[0]}</td>
+                    <td className="px-5 py-4">
+                      {/request/i.test(`${n.title || ''} ${n.message || ''}`) && !['approved', 'declined'].includes(n.status) && (
+                        <div className="flex gap-2">
+                          <button type="button" disabled={busy === n.id} onClick={() => decide(n, true)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"><Check size={12} /> Approve</button>
+                          <button type="button" disabled={busy === n.id} onClick={() => decide(n, false)} className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white"><X size={12} /> Decline</button>
+                        </div>
+                      )}
+                      {n.status && <span className="text-xs text-[#AAB4C3]">{n.status}</span>}
+                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
