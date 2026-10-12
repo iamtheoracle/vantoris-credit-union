@@ -186,6 +186,7 @@ export default function Discover() {
           </span>
         </div>
       </div>
+      </div>
 
       {msg && (
         <div className="mx-5 mt-4 rounded-xl border border-brass/30 bg-brass/10 px-4 py-3 text-sm text-navy">
