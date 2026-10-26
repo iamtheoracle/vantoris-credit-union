@@ -14,7 +14,7 @@ const SECTIONS = [
       { id: 'travel', label: 'Travel', desc: 'Flights, hotels, cars — provider required', icon: Compass, route: '/travel', color: 'bg-navy/8 text-navy' },
       { id: 'homes', label: 'Homes', desc: 'Licensed listings only', icon: Info, route: '/homes', color: 'bg-navy/8 text-navy' },
       { id: 'news', label: 'News', desc: 'Attributed sources only', icon: FileText, route: '/news', color: 'bg-navy/8 text-navy' },
-      { id: 'ask', label: 'Ask Vantoris', desc: 'Rules-based, no language model', icon: Sparkles, route: '/ask', color: 'bg-brass/10 text-brass' },
+      { id: 'ask', label: 'Ask Vantoris', desc: 'Does the work. No language model', icon: Sparkles, route: '/ask', color: 'bg-brass/10 text-brass' },
       { id: 'support', label: 'Support', desc: 'Help and contact', icon: Phone, route: '/support', color: 'bg-emerald-500/10 text-emerald-700' },
     ],
   },
@@ -48,7 +48,7 @@ const SECTIONS = [
     title: 'Support',
     items: [
       { id: 'messages', label: 'Messages', desc: 'Your support conversations', icon: MessageCircle, route: '/messages', color: 'bg-navy/8 text-navy' },
-      { id: 'advisor', label: 'Member Advisor', desc: 'AI banking assistant', icon: Sparkles, route: '/advisor', color: 'bg-brass/10 text-brass' },
+      { id: 'advisor', label: 'Member Advisor', desc: 'Same assistant, connected to your membership', icon: Sparkles, route: '/advisor', color: 'bg-brass/10 text-brass' },
       { id: 'contact', label: 'Contact Support', desc: 'WhatsApp & email support', icon: Phone, external: true, color: 'bg-emerald-500/10 text-emerald-600' },
     ],
   },

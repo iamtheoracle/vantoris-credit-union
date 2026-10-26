@@ -1,108 +1,72 @@
-import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
 import ProductShell from './ProductShell';
-import { PROVIDERS, isConnected } from '@/lib/providers';
-import { askPrivateModel, privateLlmConfigured } from '@/lib/privateLlm';
-
-/**
- * Ask prepares money and flight actions. It executes only after an explicit
- * confirm, and only if the provider is connected. It never claims success
- * without a provider result.
- */
-function parseSend(text) {
-  const amount = text.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
-  const to = text.match(/\bto\s+([A-Za-z0-9 .@_-]{2,40})/i);
-  if (!/send|transfer|pay/i.test(text) || !amount) return null;
-  return { type: 'send', amount: Number(amount[1]), to: (to?.[1] || '').trim() || 'recipient not named' };
-}
-
-function parseFlight(text) {
-  if (!/book|flight/i.test(text)) return null;
-  const route = text.match(/([A-Za-z]{3})\s*(?:to|-)\s*([A-Za-z]{3})/i);
-  return { type: 'flight', from: route?.[1]?.toUpperCase() || 'origin not set', to: route?.[2]?.toUpperCase() || 'destination not set' };
-}
+import { parseCommand, runAssignment } from '@/lib/memberActions';
 
 export default function Ask() {
   const [input, setInput] = useState('');
   const [log, setLog] = useState([]);
   const [draft, setDraft] = useState(null);
+  const [busy, setBusy] = useState(false);
 
-  const status = useMemo(
-    () => Object.values(PROVIDERS).map((p) => `${p.label}: ${p.status}`),
-    []
-  );
-
-  function push(role, text, extra) {
-    setLog((prev) => [...prev, { role, text, ...extra }]);
+  function push(role, text) {
+    setLog((prev) => [...prev, { role, text }]);
   }
 
   async function ask() {
     const q = input.trim();
-    if (!q) return;
+    if (!q || busy) return;
     setInput('');
     push('you', q);
-    const send = parseSend(q);
-    const flight = parseFlight(q);
-    if (send) {
-      setDraft(send);
-      push('vantoris', `Prepared send of $${send.amount.toFixed(2)} to ${send.to}. Nothing has been sent. Confirm to continue.`);
+    const command = parseCommand(q);
+    if (['send', 'deposit', 'freeze', 'check', 'wire', 'zelle', 'wallet', 'ira'].includes(command.type)) {
+      setDraft({ q, command });
+      push('vantoris', command.type === 'freeze'
+        ? 'Prepared a freeze on your primary share account. Confirm to write it.'
+        : `Prepared ${command.type} of $${Number(command.amount || 0).toFixed(2)}. Confirm to write the pending record. Nothing posts until an operator approves it.`);
       return;
     }
-    if (flight) {
-      setDraft(flight);
-      push('vantoris', `Prepared flight search ${flight.from} to ${flight.to}. Nothing is booked. Confirm to continue.`);
-      return;
+    setBusy(true);
+    try {
+      const result = await runAssignment(command);
+      push('vantoris', result.text);
+    } catch (e) {
+      push('vantoris', e.message || 'The membership backend rejected this assignment.');
+    } finally {
+      setBusy(false);
     }
-    let text = 'I can prepare a send or a flight, or open Money, Cards, Travel, Homes, and HeroBox. I do not execute until you confirm.';
-    if (privateLlmConfigured()) {
-      try {
-        const out = await askPrivateModel(q);
-        if (out.text) text = out.text;
-      } catch (e) {
-        text = e.message || 'Private model unavailable.';
-      }
-    }
-    push('vantoris', text);
   }
 
-  function confirm() {
+  async function confirm() {
     if (!draft) return;
-    if (draft.type === 'send') {
-      if (!isConnected('payments')) {
-        push('vantoris', `Not sent. Payments provider is not connected, so $${draft.amount.toFixed(2)} to ${draft.to} was not submitted.`, { to: '/move-money?action=send' });
-      } else {
-        push('vantoris', 'Payments provider is connected. Open Pay to authenticate and submit. This chat has not sent the money.', { to: '/move-money?action=send' });
-      }
+    setBusy(true);
+    try {
+      const result = await runAssignment(draft.command);
+      push('vantoris', result.text);
+      setDraft(null);
+    } catch (e) {
+      push('vantoris', e.message || 'The membership backend rejected this assignment.');
+    } finally {
+      setBusy(false);
     }
-    if (draft.type === 'flight') {
-      if (!isConnected('flights')) {
-        push('vantoris', `Not booked. No flight inventory provider is connected for ${draft.from} to ${draft.to}.`, { to: '/travel' });
-      } else {
-        push('vantoris', 'Open Travel to review the fare. This chat has not booked the flight.', { to: '/travel' });
-      }
-    }
-    setDraft(null);
   }
 
   return (
-    <ProductShell kicker="Ask Vantoris" title="Ask" subtitle="The agent can prepare a send or a booking. It executes only after you confirm, and only if the provider accepts it.">
-      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 text-[11px] text-slate-500 space-y-1">
-        {status.map((s) => <p key={s}>{s}</p>)}
+    <ProductShell kicker="Member assistant" title="Ask" subtitle="Connected to your membership. No language model. Assignments write real records.">
+      <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-[12px] text-emerald-900">
+        Runs on this platform. Agents queue the work. Operators approve it. Cards, wallets, Zelle, checks, wires, and IRA open only after approval.
       </div>
       <div className="space-y-2 mb-4">
         {log.map((m, i) => (
           <div key={i} className={`rounded-2xl px-4 py-3 text-sm ${m.role === 'you' ? 'bg-navy text-white' : 'bg-white border border-slate-200'}`}>
             <p>{m.text}</p>
-            {m.to && <Link to={m.to} className="mt-2 inline-block text-xs font-semibold underline">Open</Link>}
           </div>
         ))}
       </div>
       {draft && (
         <div className="mb-4 rounded-2xl border border-brass/40 bg-brass/10 p-4 text-sm">
-          <p className="font-semibold text-navy">{draft.type === 'send' ? `Send $${draft.amount.toFixed(2)}` : `Flight ${draft.from} → ${draft.to}`}</p>
-          <p className="mt-1 text-slate-600">Confirm does not mean completed. A provider has to accept it.</p>
+          <p className="font-semibold text-navy">{draft.q}</p>
           <div className="mt-3 flex gap-2">
-            <button type="button" onClick={confirm} className="rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white">Confirm</button>
+            <button type="button" disabled={busy} onClick={confirm} className="rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? 'Writing…' : 'Confirm'}</button>
             <button type="button" onClick={() => setDraft(null)} className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold">Cancel</button>
           </div>
         </div>
@@ -112,10 +76,10 @@ export default function Ask() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && ask()}
-          placeholder="Send $25 to Ada  ·  Book flight LOS to LHR"
+          placeholder="check $100 · zelle $40 to Ada · open IRA"
           className="h-11 flex-1 rounded-xl border border-slate-200 px-3 text-sm"
         />
-        <button type="button" onClick={ask} className="rounded-xl bg-navy px-4 text-sm font-semibold text-white">Ask</button>
+        <button type="button" disabled={busy} onClick={ask} className="rounded-xl bg-navy px-4 text-sm font-semibold text-white disabled:opacity-50">Ask</button>
       </div>
     </ProductShell>
   );

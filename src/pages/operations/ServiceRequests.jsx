@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import StatusBadge from '@/components/vantoris/StatusBadge';
+import { fulfillService } from '@/lib/platformFulfill';
 import OperationsPageLayout from '@/components/vantoris/OperationsPageLayout';
 import InternalComments from '@/components/vantoris/InternalComments';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -80,11 +80,12 @@ export default function ServiceRequests() {
         status,
         admin_notes: adminNotes,
       });
+      const result = await fulfillService(selected, status === 'approved');
       await base44.entities.Notification.create({
         user_id: selected.user_id,
         title: status === 'approved' ? 'Service Request Approved' : 'Service Request Rejected',
         message: status === 'approved'
-          ? `Your request for ${selected.service_type} has been approved.`
+          ? `Your request for ${selected.service_type} has been approved. ${result.note || ''}`
           : `Your request for ${selected.service_type} was not approved. ${adminNotes || ''}`,
         type: status === 'approved' ? 'success' : 'warning',
       });

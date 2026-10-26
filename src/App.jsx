@@ -47,6 +47,7 @@ const CardsPage = React.lazy(() => import('./pages/product/Cards'));
 const TravelPage = React.lazy(() => import('./pages/product/Travel'));
 const HomesPage = React.lazy(() => import('./pages/product/Homes'));
 const NewsPage = React.lazy(() => import('./pages/product/News'));
+const MemberServices = React.lazy(() => import('./pages/product/MemberServices'));
 const AskPage = React.lazy(() => import('./pages/product/Ask'));
 const HeroBoxHub = React.lazy(() => import('./pages/product/HeroBoxHub'));
 const SupportPage = React.lazy(() => import('./pages/product/Support'));
@@ -182,13 +183,14 @@ const AuthenticatedApp = () => {
               <Route path="/homes" element={<HomesPage />} />
               <Route path="/news" element={<NewsPage />} />
               <Route path="/ask" element={<AskPage />} />
+              <Route path="/services-hub" element={<MemberServices />} />
               <Route path="/herobox-hub" element={<HeroBoxHub />} />
               <Route path="/support" element={<SupportPage />} />
               <Route path="/move-money" element={<MoveMoney />} />
               <Route path="/move" element={<MoveMoney />} />
               <Route path="/more" element={<More />} />
               <Route path="/dispute" element={<TransactionDispute />} />
-              <Route path="/assistant" element={<VantorisAssistant />} />
+              <Route path="/assistant" element={<AskPage />} />
               <Route path="/herobox" element={<HeroBox />} />
               <Route path="/investment" element={<Investment />} />
             </Route>

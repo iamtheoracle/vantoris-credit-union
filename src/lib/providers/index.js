@@ -34,7 +34,7 @@ export const SHIPMENT_STATES = [
 /** Config flags. Flip only when a real adapter is wired. */
 export const PROVIDERS = {
   financialAccount: { id: 'financialAccount', label: 'USD account', status: PROVIDER_STATUS.CONNECTED, note: 'Reads member Account records from the connected backend when present.' },
-  payments: { id: 'payments', label: 'Payments', status: PROVIDER_STATUS.NOT_CONFIGURED, note: 'Send requires a payments provider. Not connected.' },
+  payments: { id: 'payments', label: 'Member ledger', status: PROVIDER_STATUS.CONNECTED, note: 'Assistant and Transfer write pending transactions and notify operators. External payment rails are not connected.' },
   cards: { id: 'cards', label: 'Cards', status: PROVIDER_STATUS.NOT_CONFIGURED, note: 'No card issuer connected. Existing card records display only if the backend returns them.' },
   flights: { id: 'flights', label: 'Flights', status: PROVIDER_STATUS.NOT_CONFIGURED, note: 'No licensed flight inventory or booking provider connected.' },
   flightTracking: { id: 'flightTracking', label: 'Flight tracking', status: PROVIDER_STATUS.NOT_CONFIGURED, note: 'No commercial flight-status provider connected. Live positions are not simulated.' },

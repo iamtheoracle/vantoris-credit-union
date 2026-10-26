@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatCurrency } from '@/lib/formatCurrency';
-import { useToast } from '@/components/ui/use-toast';
+import { fulfillService } from '@/lib/platformFulfill';
 
 const PENDING = new Set(['pending', 'requested', 'review', '']);
 
@@ -21,9 +21,10 @@ export default function Approvals() {
 
   async function load() {
     const user = await base44.auth.me().catch(() => null);
-    const [txns, notes] = await Promise.all([
+    const [txns, notes, services] = await Promise.all([
       base44.entities.Transaction.list('-created_date', 200).catch(() => []),
       user ? base44.entities.Notification.filter({ user_id: user.id }, '-created_date', 100).catch(() => []) : [],
+      base44.entities.ServiceRequest.list('-created_date', 100).catch(() => []),
     ]);
     const money = (Array.isArray(txns) ? txns : [])
       .filter((t) => isPending(t))
@@ -47,7 +48,18 @@ export default function Approvals() {
         user_id: n.user_id,
         raw: n,
       }));
-    setItems([...money, ...requests]);
+    const serviceItems = (Array.isArray(services) ? services : [])
+      .filter((s) => isPending(s))
+      .map((s) => ({
+        kind: 'service',
+        id: s.id,
+        title: s.service_type || 'service',
+        detail: s.details || 'Platform request',
+        amount: null,
+        user_id: s.user_id,
+        raw: s,
+      }));
+    setItems([...money, ...requests, ...serviceItems]);
   }
 
   useEffect(() => { load().catch((e) => setError(e.message || 'Could not load approvals.')); }, []);
@@ -77,6 +89,18 @@ export default function Approvals() {
             message: `${approved ? 'Approved' : 'Declined'}: ${txn.description || txn.type}.`,
             type: approved ? 'info' : 'warning',
             status: approved ? 'approved' : 'declined',
+          }).catch(() => {});
+        }
+      }
+      if (item.kind === 'service') {
+        const result = await fulfillService(item.raw, approved);
+        await base44.entities.ServiceRequest.update(item.id, { status: approved ? 'approved' : 'declined' });
+        if (item.user_id) {
+          await base44.entities.Notification.create({
+            user_id: item.user_id,
+            title: approved ? 'Service approved' : 'Service declined',
+            message: approved ? (result.note || 'Approved on the platform.') : 'Declined by an operator.',
+            type: approved ? 'info' : 'warning',
           }).catch(() => {});
         }
       }

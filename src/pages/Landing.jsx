@@ -44,14 +44,14 @@ export default function Landing() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#F6F1E7] text-[#122033]">
-      <header className="sticky top-0 z-30 border-b border-[#E4DCCB] bg-[#F6F1E7]/95 backdrop-blur">
+    <div className="min-h-screen bg-[#F7F3EA] text-[#122033]">
+      <header className="sticky top-0 z-30 border-b border-[#E6DCC8] bg-[#F7F3EA]/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0B1F3A] text-sm font-bold text-[#F6F1E7]">V</span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#071A2D] text-sm font-bold text-[#F7F3EA]">V</span>
             <span>
-              <span className="block text-sm font-bold tracking-wide text-[#0B1F3A]">VANTORIS</span>
-              <span className="block text-[10px] uppercase tracking-[0.16em] text-[#6B5A3E]">Member financial home</span>
+              <span className="block text-sm font-bold tracking-wide text-[#071A2D]">VANTORIS</span>
+              <span className="block text-[10px] uppercase tracking-[0.16em] text-[#8A7344]">Member financial home</span>
             </span>
           </Link>
           <nav className="hidden items-center gap-5 lg:flex">
@@ -61,7 +61,7 @@ export default function Landing() {
           </nav>
           <div className="flex items-center gap-2">
             <Link to="/login" className="hidden rounded-full px-4 py-2 text-sm font-semibold text-[#0B1F3A] sm:inline">Member sign in</Link>
-            <Link to="/register" className="rounded-full bg-[#0B1F3A] px-4 py-2 text-sm font-semibold text-white">Join</Link>
+            <Link to="/register" className="rounded-full bg-[#071A2D] px-4 py-2 text-sm font-semibold text-white">Join</Link>
             <button type="button" className="lg:hidden" onClick={() => setOpen((v) => !v)} aria-label="Menu">
               {open ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -77,32 +77,25 @@ export default function Landing() {
         )}
       </header>
 
-      <section className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:py-24">
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:py-20">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1F6B4A]">Membership</p>
-          <h1 className="mt-3 font-serif text-4xl leading-tight text-[#0B1F3A] sm:text-6xl">A member financial home, built like a credit union.</h1>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#C9A227]">Membership</p>
+          <h1 className="mt-3 font-serif text-4xl leading-tight text-[#071A2D] sm:text-6xl">A member financial home, built like a credit union.</h1>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-[#3D4A5C]">
             Vantoris is organized around membership: share accounts, cards, transfers, and community service. You join, you sign in, and your own records are what you see.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/register" className="inline-flex items-center gap-2 rounded-full bg-[#0B1F3A] px-5 py-3 text-sm font-semibold text-white">
+            <Link to="/register" className="inline-flex items-center gap-2 rounded-full bg-[#071A2D] px-5 py-3 text-sm font-semibold text-white">
               Become a member <ArrowRight size={16} />
             </Link>
-            <Link to="/login" className="inline-flex items-center gap-2 rounded-full border border-[#C9B896] bg-white px-5 py-3 text-sm font-semibold text-[#0B1F3A]">
+            <Link to="/login" className="inline-flex items-center gap-2 rounded-full border border-[#C9A227] bg-white px-5 py-3 text-sm font-semibold text-[#071A2D]">
               Member sign in
             </Link>
           </div>
         </div>
-        <div className="rounded-[28px] bg-[#0B1F3A] p-6 text-white shadow-xl">
-          <p className="text-xs uppercase tracking-[0.16em] text-white/55">Member snapshot</p>
-          <p className="mt-4 font-serif text-4xl">Share savings</p>
-          <p className="mt-2 text-sm text-white/70">Balances, cards, and activity load from the member record after sign-in.</p>
-          <div className="mt-8 grid grid-cols-2 gap-3">
-            {['Share draft', 'Cards', 'Transfers', 'Member services'].map((item) => (
-              <div key={item} className="rounded-2xl bg-white/8 px-4 py-4 text-sm font-medium">{item}</div>
-            ))}
-          </div>
-        </div>
+        <figure className="overflow-hidden rounded-[28px] shadow-[0_24px_60px_rgba(7,26,45,0.18)]">
+          <img src="/brand/branch.jpg" alt="Member services desk in a Vantoris branch" className="h-[420px] w-full object-cover" />
+        </figure>
       </section>
 
       <section id="membership" className="border-y border-[#E4DCCB] bg-white">
@@ -130,21 +123,16 @@ export default function Landing() {
         </div>
       </section>
 
-      <section id="cards" className="bg-[#0B1F3A] text-white">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-2">
+      <section id="cards" className="bg-[#071A2D] text-white">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-16 sm:px-6 lg:grid-cols-2">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#C9B896]">Cards</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#C9A227]">Cards</p>
             <h2 className="mt-2 font-serif text-3xl">Issued to the member. Not displayed until they exist.</h2>
             <p className="mt-4 max-w-md text-white/70">Debit and credit cards show the last four and status returned by the membership system. Freeze, spend controls, and new issuance stay with member services until a card program is connected.</p>
           </div>
-          <div className="rounded-[28px] bg-gradient-to-br from-[#17345C] to-[#0B1F3A] p-6 ring-1 ring-white/10">
-            <p className="text-xs tracking-[0.2em]">VANTORIS</p>
-            <p className="mt-10 font-mono text-lg tracking-[0.2em]">•••• •••• •••• 4821</p>
-            <div className="mt-8 flex justify-between text-xs text-white/60">
-              <span>MEMBER</span>
-              <span>DEBIT</span>
-            </div>
-          </div>
+          <figure className="overflow-hidden rounded-[28px]">
+            <img src="/brand/card.jpg" alt="Navy and brass Vantoris member card" className="h-[320px] w-full object-cover" />
+          </figure>
         </div>
       </section>
 
@@ -165,22 +153,27 @@ export default function Landing() {
         </div>
       </section>
 
-      <section id="community" className="border-y border-[#E4DCCB] bg-white">
+      <section id="community" className="border-y border-[#E6DCC8] bg-white">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1F6B4A]">Community</p>
-          <h2 className="mt-2 font-serif text-3xl text-[#0B1F3A]">Service, families, and everyday life.</h2>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#C9A227]">Community</p>
+          <h2 className="mt-2 font-serif text-3xl text-[#071A2D]">Service, families, and everyday life.</h2>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl bg-[#F6F1E7] p-6">
+            <figure className="overflow-hidden rounded-3xl"><img src="/brand/community.jpg" alt="Members packing care packages" className="h-56 w-full object-cover" /></figure>
+            <figure className="overflow-hidden rounded-3xl"><img src="/brand/travel.jpg" alt="Travel from the member window" className="h-56 w-full object-cover" /></figure>
+            <figure className="overflow-hidden rounded-3xl"><img src="/brand/home.jpg" alt="A member home at golden hour" className="h-56 w-full object-cover" /></figure>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <div className="rounded-3xl bg-[#F7F3EA] p-6">
               <Heart className="text-[#1F6B4A]" />
               <h3 className="mt-3 font-semibold">Giving</h3>
               <p className="mt-2 text-sm text-[#3D4A5C]">Members can request support for verified organizations. Donations are not simulated.</p>
             </div>
-            <div className="rounded-3xl bg-[#F6F1E7] p-6">
+            <div className="rounded-3xl bg-[#F7F3EA] p-6">
               <Plane className="text-[#1F6B4A]" />
               <h3 className="mt-3 font-semibold">Travel</h3>
               <p className="mt-2 text-sm text-[#3D4A5C]">Travel requests go to member services. Bookings appear only when a provider returns them.</p>
             </div>
-            <div className="rounded-3xl bg-[#F6F1E7] p-6">
+            <div className="rounded-3xl bg-[#F7F3EA] p-6">
               <Home className="text-[#1F6B4A]" />
               <h3 className="mt-3 font-semibold">Homes</h3>
               <p className="mt-2 text-sm text-[#3D4A5C]">Housing help is a member request. Listings are not invented.</p>

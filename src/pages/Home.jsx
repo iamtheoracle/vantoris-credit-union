@@ -163,7 +163,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] text-navy max-w-[430px] mx-auto relative">
+    <div className="min-h-screen bg-[#F7F3EA] text-navy max-w-[430px] mx-auto relative">
       <header className="sticky top-0 z-20 flex items-center justify-between px-4 pt-3 pb-2 bg-[#F4F6F9]/95 backdrop-blur-md">
         <div className="w-9" />
         <div className="text-center flex-1">
@@ -223,7 +223,7 @@ export default function Home() {
       <main className="px-4 pb-28">
         {tab === 'account' && (
           <section>
-            <div className="rounded-[22px] bg-gradient-to-br from-navy via-[#0A2342] to-[#0E2A4A] text-white p-6 mb-5 shadow-[0_12px_32px_rgba(7,28,56,0.22)]">
+            <div className="rounded-[22px] bg-gradient-to-br from-[#071A2D] via-[#0A2342] to-[#143A2A] text-white p-6 mb-5 shadow-[0_12px_32px_rgba(7,26,45,0.22)]">
               <p className="text-[13px] text-white/65 mb-1 font-medium">Available shares</p>
               <p className="text-[36px] font-bold tracking-tight tabular-nums leading-none">
                 {hidden ? '••••••' : formatCurrency(balance)}
@@ -243,6 +243,21 @@ export default function Home() {
                   {accounts.length} account{accounts.length === 1 ? '' : 's'} · Vantoris
                 </p>
               )}
+            </div>
+
+            <div className="mb-5 grid grid-cols-3 gap-2">
+              {[
+                ['Check', '/services-hub'],
+                ['Zelle', '/services-hub'],
+                ['Wire', '/services-hub'],
+                ['Wallets', '/services-hub'],
+                ['IRA', '/services-hub'],
+                ['Card', '/cards'],
+              ].map(([label, to]) => (
+                <button key={label} type="button" onClick={() => navigate(to)} className="rounded-2xl bg-white px-2 py-3 text-[12px] font-semibold text-[#071A2D] shadow-sm">
+                  {label}
+                </button>
+              ))}
             </div>
 
             <div className="flex justify-center gap-5 sm:gap-8 mb-6 flex-wrap">
