@@ -1,49 +1,33 @@
 import { base44 } from '@/api/base44Client';
 
 /**
- * Platform fulfillment. No outside network is called.
- * Operators and agents decide; the membership records are what change.
+ * Approval records are platform workflow only. No external card issuer,
+ * wallet tokenization service, or IRA custodian is configured.
+ * Never fabricate issued cards, wallet provisioning, or financial accounts.
  */
-
 export async function fulfillService(request, approved) {
-  if (!approved) return { done: false };
+  if (!approved) return { done: false, note: 'Request rejected; no service was provisioned.' };
+
   const type = String(request.service_type || '').toLowerCase();
-  const detail = request.details || '';
+  const unavailable = {
+    card: 'Request approved for manual follow-up only. No card issuer is connected, so no card was issued.',
+    apple: 'Request approved for manual follow-up only. Apple Wallet provisioning is not connected.',
+    google: 'Request approved for manual follow-up only. Google Wallet provisioning is not connected.',
+    ira: 'Request approved for manual follow-up only. No IRA custodian or account-opening provider is connected.',
+  };
 
-  if (type === 'card') {
-    const row = await base44.entities.PaymentCard.create({
-      user_id: request.user_id,
-      card_type: 'debit',
-      brand: 'Vantoris',
-      last_four: String(Date.now()).slice(-4),
-      status: 'issued',
-    });
-    return { done: true, record: row?.id, note: 'Member card issued on the platform.' };
+  if (unavailable[type]) return { done: false, note: unavailable[type] };
+
+  // These are platform service requests, not evidence of external execution.
+  if (['zelle', 'check', 'wire', 'flight', 'home', 'community'].includes(type)) {
+    return {
+      done: false,
+      note: 'Request approved for operator follow-up. No external provider action was performed.',
+    };
   }
 
-  if (type === 'apple' || type === 'google') {
-    const cards = await base44.entities.PaymentCard.filter({ user_id: request.user_id }, '-created_date').catch(() => []);
-    const card = Array.isArray(cards) ? cards[0] : null;
-    if (!card) return { done: false, note: 'No member card to add to a wallet.' };
-    await base44.entities.PaymentCard.update(card.id, { status: `wallet-${type}` });
-    return { done: true, record: card.id, note: `Card marked for ${type} wallet on the platform.` };
-  }
-
-  if (type === 'ira') {
-    const row = await base44.entities.Account.create({
-      user_id: request.user_id,
-      account_name: /roth/i.test(detail) ? 'Roth IRA' : 'Traditional IRA',
-      account_type: 'ira',
-      balance: 0,
-      status: 'active',
-      currency: 'USD',
-    });
-    return { done: true, record: row?.id, note: 'IRA share opened on the platform.' };
-  }
-
-  if (type === 'zelle') {
-    return { done: true, note: 'Zelle-style send stays a platform transfer. Operators approve the pending transaction.' };
-  }
-
-  return { done: true, note: 'Request approved on the platform.' };
+  return {
+    done: false,
+    note: 'Request reviewed on the platform only. No external service was provisioned.',
+  };
 }
