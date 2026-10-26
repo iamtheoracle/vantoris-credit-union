@@ -129,13 +129,15 @@ export async function runAssignment(command) {
 
   if (command.type === 'freeze') {
     if (!account) return { ok: false, text: 'No account to freeze.' };
-    await base44.entities.Account.update(account.id, { status: 'frozen' });
-    await notifyOperators({
-      title: 'Account freeze requested',
-      message: `${who} froze ${account.account_name || account.account_type || 'an account'}.`,
-      type: 'warning',
-    });
-    return { ok: true, text: `${account.account_name || 'Account'} is marked frozen.` };
+    const row = await queueService(
+      me,
+      'freeze',
+      `Member requested a freeze for ${account.account_name || account.account_type || 'their account'} (account reference: ${account.id}).`
+    );
+    return {
+      ok: true,
+      text: `Freeze request queued for operator review. ${account.account_name || 'Account'} has not been frozen yet. Request ${row?.id || 'created'}.`,
+    };
   }
 
   if (command.type === 'flight') {
