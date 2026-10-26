@@ -8,6 +8,16 @@
     "service_type": {
       "type": "string",
       "enum": [
+        "card",
+        "apple",
+        "google",
+        "zelle",
+        "check",
+        "wire",
+        "ira",
+        "flight",
+        "home",
+        "community",
         "Joint Account",
         "Business Account",
         "Debit Card",
