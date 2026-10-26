@@ -21,7 +21,8 @@
         "Joint Account",
         "Business Account",
         "Debit Card",
-        "Investment Access"
+        "Investment Access",
+        "freeze"
       ]
     },
     "status": {
