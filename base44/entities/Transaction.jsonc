@@ -12,6 +12,8 @@
         "deposit",
         "withdrawal",
         "transfer",
+        "send",
+        "wire",
         "interest",
         "fee",
         "adjustment"
@@ -52,7 +54,7 @@
         "system"
       ],
       "default": "live",
-      "description": "Origin of the transaction \u2014 live (system-generated), historical_import (from uploaded statement), admin_entry (manual), system (automated)"
+      "description": "Origin of the transaction — live (system-generated), historical_import (from uploaded statement), admin_entry (manual), system (automated)"
     },
     "imported_statement_id": {
       "type": "string",
@@ -62,6 +64,8 @@
       "type": "string",
       "enum": [
         "pending",
+        "approved",
+        "declined",
         "completed",
         "failed",
         "reversed"
