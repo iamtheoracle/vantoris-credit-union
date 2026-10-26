@@ -73,31 +73,11 @@ export default function Approvals() {
         ? item.raw
         : await base44.entities.Transaction.get(txnIdFrom(item.detail)).catch(() => null);
       if (txn?.id) {
-        if (!isPending(txn)) throw new Error('This transaction has already been processed. Refresh the approvals list.');
-        if (approved) {
-          const account = txn.account_id ? await base44.entities.Account.get(txn.account_id).catch(() => null) : null;
-          if (!account) throw new Error('Cannot approve this transaction because its account could not be verified.');
-          if (['frozen', 'closed'].includes(String(account.status || '').toLowerCase())) {
-            throw new Error('Cannot post a transaction to a frozen or closed account.');
-          }
-          const value = Math.abs(Number(txn.amount) || 0);
-          if (!Number.isFinite(value) || value <= 0) throw new Error('Transaction amount must be greater than zero.');
-          const credit = txn.type === 'deposit' || Number(txn.amount) > 0;
-          const next = account ? Math.round(((Number(account.balance) || 0) + (credit ? value : -value)) * 100) / 100 : null;
-          if (account && next != null) await base44.entities.Account.update(account.id, { balance: next });
-          await base44.entities.Transaction.update(txn.id, { status: 'approved', balance_after: next });
-        } else {
-          await base44.entities.Transaction.update(txn.id, { status: 'declined' });
-        }
-        if (txn.user_id) {
-          await base44.entities.Notification.create({
-            user_id: txn.user_id,
-            title: approved ? 'Transaction approved' : 'Transaction declined',
-            message: `${approved ? 'Approved' : 'Declined'}: ${txn.description || txn.type}.`,
-            type: approved ? 'info' : 'warning',
-            status: approved ? 'approved' : 'declined',
-          }).catch(() => {});
-        }
+        const result = await base44.functions.invoke('approveTransaction', {
+          transaction_id: txn.id,
+          decision: approved ? 'approve' : 'decline',
+        });
+        if (result?.data?.error) throw new Error(result.data.error);
       }
       if (item.kind === 'service') {
         const result = await fulfillService(item.raw, approved);
