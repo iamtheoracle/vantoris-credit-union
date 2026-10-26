@@ -64,6 +64,7 @@
       "type": "string",
       "enum": [
         "pending",
+        "processing",
         "approved",
         "declined",
         "completed",
