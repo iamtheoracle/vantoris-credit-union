@@ -53,9 +53,10 @@ Deno.serve(async (req) => {
 
     let accountNumber = '';
     for (let attempts = 0; attempts < 100; attempts++) {
-      const random = new Uint32Array(1);
+      const random = new Uint32Array(2);
       crypto.getRandomValues(random);
-      accountNumber = String(1000000000 + (random[0] % 9000000000));
+      const entropy = (BigInt(random[0]) << 32n) | BigInt(random[1]);
+      accountNumber = String(1000000000n + (entropy % 9000000000n));
       if (!existingNumbers.has(accountNumber)) break;
       accountNumber = '';
     }
