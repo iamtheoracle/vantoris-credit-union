@@ -83,6 +83,12 @@
       ],
       "default": "",
       "description": "For transfer-type transactions: in=received, out=sent, internal=between own accounts, external=to/from another bank"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "counterparty": {
+      "type": "string"
     }
   },
   "required": [
