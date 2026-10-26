@@ -77,11 +77,11 @@ export default function ServiceRequests() {
     if (!selected) return;
     setSubmitting(true);
     try {
+      const result = await fulfillService(selected, status === 'approved');
       await base44.entities.ServiceRequest.update(selected.id, {
         status,
         admin_notes: adminNotes,
       });
-      const result = await fulfillService(selected, status === 'approved');
       await base44.entities.Notification.create({
         user_id: selected.user_id,
         title: status === 'approved' ? 'Service Request Approved' : 'Service Request Rejected',
