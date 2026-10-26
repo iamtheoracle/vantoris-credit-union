@@ -54,6 +54,9 @@ export default async function(req: Request): Promise<Response> {
     if (['frozen', 'closed'].includes(String(account.status || '').toLowerCase())) {
       return Response.json({ error: 'Cannot post to a frozen or closed account' }, { status: 409 });
     }
+    if (txn.user_id && account.user_id && txn.user_id !== account.user_id) {
+      return Response.json({ error: 'Transaction owner does not match the account owner; posting blocked for reconciliation' }, { status: 409 });
+    }
 
     const amount = Number(txn.amount);
     if (!Number.isFinite(amount) || amount === 0 || (txn.type !== 'adjustment' && amount < 0)) {
