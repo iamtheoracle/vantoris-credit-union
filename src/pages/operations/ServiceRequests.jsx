@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import StatusBadge from '@/components/vantoris/StatusBadge';
 import { fulfillService } from '@/lib/platformFulfill';
 import OperationsPageLayout from '@/components/vantoris/OperationsPageLayout';
 import InternalComments from '@/components/vantoris/InternalComments';
