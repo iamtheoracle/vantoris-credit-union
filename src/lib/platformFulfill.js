@@ -1,5 +1,3 @@
-import { base44 } from '@/api/base44Client';
-
 /**
  * Approval records are platform workflow only. No external card issuer,
  * wallet tokenization service, or IRA custodian is configured.
@@ -14,6 +12,7 @@ export async function fulfillService(request, approved) {
     apple: 'Request approved for manual follow-up only. Apple Wallet provisioning is not connected.',
     google: 'Request approved for manual follow-up only. Google Wallet provisioning is not connected.',
     ira: 'Request approved for manual follow-up only. No IRA custodian or account-opening provider is connected.',
+    freeze: 'Freeze request reviewed on the platform only. This action did not change account status; an authorized operator must perform and verify the freeze.',
   };
 
   if (unavailable[type]) return { done: false, note: unavailable[type] };
