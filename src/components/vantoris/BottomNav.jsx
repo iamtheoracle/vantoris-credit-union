@@ -5,9 +5,9 @@ import { useTabHistory } from '@/lib/TabHistoryContext';
 
 const ITEMS = [
   { id: 'home', label: 'Home', to: '/', Icon: Home, match: (p) => p === '/' || p === '' },
-  { id: 'money', label: 'Money', to: '/money', Icon: Landmark, match: (p) => p.startsWith('/money') || p.startsWith('/move') || p.startsWith('/accounts') || p.startsWith('/qr') },
+  { id: 'money', label: 'Shares', to: '/money', Icon: Landmark, match: (p) => p.startsWith('/money') || p.startsWith('/move') || p.startsWith('/accounts') || p.startsWith('/qr') },
   { id: 'cards', label: 'Cards', to: '/cards', Icon: CreditCard, match: (p) => p.startsWith('/cards') || p.startsWith('/services') },
-  { id: 'herobox', label: 'HeroBox', to: '/herobox-hub', Icon: Package, match: (p) => p.startsWith('/herobox') },
+  { id: 'herobox', label: 'Community', to: '/herobox-hub', Icon: Package, match: (p) => p.startsWith('/herobox') },
   { id: 'more', label: 'More', to: '/more', Icon: Menu, match: (p) => ['/more','/travel','/homes','/news','/ask','/profile','/support','/discover'].some((x) => p.startsWith(x)) },
 ];
 

@@ -55,7 +55,7 @@ export default function DiscoverFlights() {
       setSource('OpenSky Network · live ADS-B sample (CONUS window)');
     } catch (e) {
       setFlights(FALLBACK);
-      setSource('Demo sample · live feed blocked or limited in this browser');
+      setSource('Live feed unavailable in this browser');
       setError(e.message || 'Using offline sample');
     } finally {
       setLoading(false);

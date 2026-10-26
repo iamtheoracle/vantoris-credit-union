@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 
 const TABS = [
-  { id: 'account', label: 'Account' },
-  { id: 'rewards', label: 'Rewards' },
+  { id: 'account', label: 'Shares' },
+  { id: 'rewards', label: 'Benefits' },
   { id: 'activity', label: 'Activity' },
 ];
 
@@ -167,11 +167,11 @@ export default function Home() {
       <header className="sticky top-0 z-20 flex items-center justify-between px-4 pt-3 pb-2 bg-[#F4F6F9]/95 backdrop-blur-md">
         <div className="w-9" />
         <div className="text-center flex-1">
-          <h1 className="text-[17px] font-bold leading-tight text-navy">Money</h1>
+          <h1 className="text-[17px] font-bold leading-tight text-navy">Membership</h1>
           <p className="text-[13px] text-slate-500 flex items-center justify-center gap-1.5">
             {firstName}
-            <span className="inline-block w-1 h-1 rounded-full bg-brass" />
-            Cash
+            <span className="inline-block w-1 h-1 rounded-full bg-[#1F6B4A]" />
+            Shares
           </p>
         </div>
         <div className="flex items-center gap-0.5">
@@ -224,7 +224,7 @@ export default function Home() {
         {tab === 'account' && (
           <section>
             <div className="rounded-[22px] bg-gradient-to-br from-navy via-[#0A2342] to-[#0E2A4A] text-white p-6 mb-5 shadow-[0_12px_32px_rgba(7,28,56,0.22)]">
-              <p className="text-[13px] text-white/65 mb-1 font-medium">Available balance</p>
+              <p className="text-[13px] text-white/65 mb-1 font-medium">Available shares</p>
               <p className="text-[36px] font-bold tracking-tight tabular-nums leading-none">
                 {hidden ? '••••••' : formatCurrency(balance)}
               </p>

@@ -74,13 +74,13 @@ export default function Login() {
       if (status === 404) {
         setError("Sign-in is temporarily unavailable. Please refresh the page and try again.");
       } else if (status === 400 || status === 401) {
-        setError("Your User ID or password is incorrect.");
+        setError("Your email or password is incorrect.");
       } else if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         setError("Unable to connect. Please check your internet connection and try again.");
       } else if (err?.message?.includes('Network') || err?.code === 'ERR_NETWORK') {
         setError("Unable to reach the server right now. Please try again in a moment.");
       } else {
-        setError(err.message || "Invalid User ID or password.");
+        setError(err.message || "Invalid email or password.");
       }
     } finally {
       setLoading(false);
@@ -103,12 +103,12 @@ export default function Login() {
 
   return (
     <AuthLayout
-      title="Sign In to Your Account"
+      title="Member sign in"
       footer={
         <span>
-          Need to open an account?{" "}
+          Not a member yet?{" "}
           <Link to="/register" className="text-navy font-medium hover:underline">
-            Get Started
+            Join
           </Link>
         </span>
       }
@@ -120,7 +120,7 @@ export default function Login() {
       )}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold uppercase tracking-wider text-gray">User ID</label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-gray">Member email</label>
           <div className="relative">
             <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray" />
             <input
@@ -155,7 +155,7 @@ export default function Login() {
             onChange={(e) => setRememberId(e.target.checked)}
             className="w-4 h-4 rounded border-slate-300 text-navy focus:ring-navy/20"
           />
-          <span className="text-sm text-gray">Remember User ID</span>
+          <span className="text-sm text-gray">Remember email</span>
         </label>
         <button
           type="submit"
@@ -168,12 +168,12 @@ export default function Login() {
               Signing in...
             </>
           ) : (
-            "Log In"
+            "Sign in"
           )}
         </button>
       </form>
       <div className="flex flex-col gap-2 mt-5 text-center text-xs">
-        <Link to="/forgot-password" className="text-gray hover:text-navy transition">Forgot User ID</Link>
+        <Link to="/forgot-password" className="text-gray hover:text-navy transition">Forgot email</Link>
         <Link to="/forgot-password" className="text-gray hover:text-navy transition">Forgot Password</Link>
         <Link to="/forgot-password" className="text-gray hover:text-navy transition">Need Help?</Link>
       </div>
