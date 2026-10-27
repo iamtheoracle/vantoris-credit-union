@@ -25,7 +25,6 @@ export default function AdminMembers() {
   const [savingNotes, setSavingNotes] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
   const [activityMember, setActivityMember] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const { toast } = useToast();
@@ -447,16 +446,15 @@ export default function AdminMembers() {
           {deleteTarget && (
             <div className="space-y-4 mt-2">
               <p className="text-[#AAB4C3] text-sm">
-                Are you sure you want to permanently delete <span className="text-white font-medium">{deleteTarget.full_name}</span> ({deleteTarget.email})?
-                This will also remove all their accounts, transactions, and associated data. This action cannot be undone.
+                Permanent deletion is disabled. This member's financial accounts, transactions, applications, and audit history must be preserved until a retention-aware deactivation workflow is implemented.
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={handleDeleteMember}
-                  disabled={deleting}
+                  disabled
                   className="flex-1 py-3 bg-crimson text-white font-semibold rounded-xl disabled:opacity-40 flex items-center justify-center gap-2"
                 >
-                  <Trash2 size={16} /> {deleting ? 'Deleting...' : 'Delete Permanently'}
+                  <Trash2 size={16} /> Deletion Disabled
                 </button>
                 <button
                   onClick={() => setDeleteTarget(null)}
