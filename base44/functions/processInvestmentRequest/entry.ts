@@ -55,8 +55,8 @@ export default async function(req: Request): Promise<Response> {
 
     const portfolio = await base44.asServiceRole.entities.InvestmentPortfolio.get(request.portfolio_id).catch(() => null);
     if (!portfolio || portfolio.user_id !== request.user_id || portfolio.status !== 'active') {
-      await requests.update(request.id, { status: 'reconciliation_required', failure_reason: 'Portfolio missing, owner mismatch, or portfolio is not active' }).catch(() => {});
-      return Response.json({ error: 'Portfolio ownership or active status could not be verified; manual reconciliation required', request_id: request.id }, { status: 409 });
+      await requests.update(request.id, { status: 'requested', failure_reason: 'Review blocked: portfolio missing, owner mismatch, or portfolio is not active' }).catch(() => {});
+      return Response.json({ error: 'Portfolio ownership or active status could not be verified; no transfer was attempted' }, { status: 409 });
     }
 
     const accountId = requestType === 'deposit' ? request.source_account_id : request.destination_account_id;
@@ -64,20 +64,20 @@ export default async function(req: Request): Promise<Response> {
       ? await base44.asServiceRole.entities.Account.get(accountId).catch(() => null)
       : null;
     if (!account || account.user_id !== request.user_id) {
-      await requests.update(request.id, { status: 'reconciliation_required', failure_reason: 'Linked bank account missing or owner mismatch' }).catch(() => {});
-      return Response.json({ error: 'Linked bank account could not be verified for this member; manual reconciliation required', request_id: request.id }, { status: 409 });
+      await requests.update(request.id, { status: 'requested', failure_reason: 'Review blocked: linked bank account missing or owner mismatch' }).catch(() => {});
+      return Response.json({ error: 'Linked bank account could not be verified for this member; no transfer was attempted' }, { status: 409 });
     }
     if (account.status !== 'active') {
-      await requests.update(request.id, { status: 'reconciliation_required', failure_reason: 'Linked bank account is not active' }).catch(() => {});
-      return Response.json({ error: 'Linked bank account is not explicitly active; manual reconciliation required', request_id: request.id }, { status: 409 });
+      await requests.update(request.id, { status: 'requested', failure_reason: 'Review blocked: linked bank account is not active' }).catch(() => {});
+      return Response.json({ error: 'Linked bank account is not explicitly active; no transfer was attempted' }, { status: 409 });
     }
 
     const bankBalance = Number(account.balance ?? 0);
     const cashBalance = Number(portfolio.cash_balance ?? 0);
     const totalValue = Number(portfolio.total_value ?? 0);
     if (![bankBalance, cashBalance, totalValue].every(Number.isFinite)) {
-      await requests.update(request.id, { status: 'reconciliation_required', failure_reason: 'One or more balances are invalid' }).catch(() => {});
-      return Response.json({ error: 'One or more balances are invalid; manual reconciliation required', request_id: request.id }, { status: 409 });
+      await requests.update(request.id, { status: 'requested', failure_reason: 'Review blocked: one or more balances are invalid' }).catch(() => {});
+      return Response.json({ error: 'One or more balances are invalid; no transfer was attempted' }, { status: 409 });
     }
     if (requestType === 'deposit' && bankBalance < amount) {
       await requests.update(request.id, { status: 'requested', failure_reason: 'Insufficient source-account balance' }).catch(() => {});
