@@ -13,7 +13,11 @@ Deno.serve(async (req) => {
     if (!user?.id) return Response.json({ error: 'Authentication required' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Admin access required' }, { status: 403 });
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return Response.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+
     const user_id = typeof body.user_id === 'string' ? body.user_id.trim() : '';
     const account_type = typeof body.account_type === 'string' ? body.account_type.trim() : '';
     const account_name = typeof body.account_name === 'string' ? body.account_name.trim() : '';
@@ -22,6 +26,9 @@ Deno.serve(async (req) => {
 
     if (!user_id || !account_type || !account_name) {
       return Response.json({ error: 'user_id, account_type, and account_name are required' }, { status: 400 });
+    }
+    if (user_id.length > 200 || application_id.length > 200) {
+      return Response.json({ error: 'user_id and application_id must be 200 characters or fewer' }, { status: 400 });
     }
     if (!ACCOUNT_TYPES.has(account_type)) {
       return Response.json({ error: 'Unsupported account_type' }, { status: 422 });
