@@ -4,7 +4,7 @@ import { formatCurrency } from '@/lib/formatCurrency';
 import { exportToCsv } from '@/lib/exportCsv';
 import StatusBadge from '@/components/vantoris/StatusBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Search, Download, History, Pencil, ArrowLeft, ScrollText, Mail, Lock, Unlock, Upload } from 'lucide-react';
+import { Plus, Search, Download, History, ArrowLeft, ScrollText, Mail, Lock, Unlock, Upload } from 'lucide-react';
 import { logAuditEntry } from '@/lib/auditLogger';
 import { sendTransactionEmail } from '@/lib/transactionEmails';
 import { useToast } from '@/components/ui/use-toast';
@@ -19,7 +19,6 @@ export default function AdminAccounts() {
   const [viewingHistory, setViewingHistory] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loadingTxns, setLoadingTxns] = useState(false);
-  const [editingTxn, setEditingTxn] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [toggleFreezeAccount, setToggleFreezeAccount] = useState(null);
@@ -57,132 +56,63 @@ export default function AdminAccounts() {
     if (!showTxn) return;
     setSubmitting(true);
     try {
-      const amount = parseFloat(txnForm.amount);
-      let newBalance = showTxn.balance;
-      if (txnForm.type === 'deposit') newBalance += amount;
-      else if (txnForm.type === 'withdrawal') newBalance -= amount;
-      else newBalance += amount; // adjustment can be negative
-
-      const txnData = {
-        account_id: showTxn.id,
-        type: txnForm.type,
-        amount: txnForm.type === 'withdrawal' ? -Math.abs(amount) : amount,
-        description: txnForm.description,
-        reference: txnForm.reference,
-        balance_after: newBalance,
-        created_by_admin: true,
-      };
-      if (txnForm.transaction_date) {
-        txnData.transaction_date = txnForm.transaction_date;
+      const amount = Number(txnForm.amount);
+      if (!Number.isFinite(amount) || amount === 0 || (txnForm.type !== 'adjustment' && amount < 0)) {
+        throw new Error('Enter a valid non-zero amount. Only adjustments may be negative.');
       }
 
-      await base44.entities.Transaction.create(txnData);
-      await base44.entities.Account.update(showTxn.id, { balance: newBalance });
-
-      const typeLabel = txnForm.type === 'deposit' ? 'Deposit Received'
-        : txnForm.type === 'withdrawal' ? 'Withdrawal Processed'
-        : 'Account Adjustment';
-      await base44.entities.Notification.create({
-        user_id: showTxn.user_id,
-        title: typeLabel,
-        message: `${txnForm.description || typeLabel}: ${formatCurrency(Math.abs(amount))}`,
-        type: txnForm.type === 'withdrawal' ? 'action' : 'success',
-      });
-
-      await sendTransactionEmail({
-        user_id: showTxn.user_id,
-        account: showTxn,
-        type: txnForm.type,
-        amount,
-        description: txnForm.description,
-        newBalance,
-      });
-
-      await logAuditEntry({
-        action_type: txnForm.type === 'adjustment' ? 'balance_adjusted' : 'transaction_created',
-        description: `${typeLabel}: ${formatCurrency(Math.abs(amount))} — ${txnForm.description || 'No description'}`,
-        details: `Type: ${txnForm.type}, Reference: ${txnForm.reference || 'N/A'}${txnForm.transaction_date ? `, Backdated: ${txnForm.transaction_date}` : ''}`,
+      const signedAmount = txnForm.type === 'adjustment' ? amount : Math.abs(amount);
+      const txnData = {
         account_id: showTxn.id,
-        amount: txnForm.type === 'withdrawal' ? -Math.abs(amount) : amount,
-        balance_before: showTxn.balance,
-        balance_after: newBalance,
+        user_id: showTxn.user_id,
+        type: txnForm.type,
+        amount: signedAmount,
+        description: txnForm.description,
+        reference: txnForm.reference,
+        created_by_admin: true,
+        status: 'pending',
+        source: 'admin_entry',
+        posting_date: new Date().toISOString().slice(0, 10),
+      };
+      if (txnForm.transaction_date) txnData.transaction_date = txnForm.transaction_date;
+
+      const created = await base44.entities.Transaction.create(txnData);
+      const result = await base44.functions.invoke('approveTransaction', {
+        transaction_id: created.id,
+        decision: 'approve',
       });
+      if (result?.data?.error) throw new Error(result.data.error);
+      if (!result?.data?.success || result?.data?.status !== 'completed') {
+        throw new Error('Posting outcome was not confirmed. Check transaction status before retrying.');
+      }
+
+      try {
+        await sendTransactionEmail({
+          user_id: showTxn.user_id,
+          account: showTxn,
+          type: txnForm.type,
+          amount: Math.abs(amount),
+          description: txnForm.description,
+          newBalance: result.data.balance_after,
+        });
+      } catch (emailError) {
+        console.error('Transaction posted, but email delivery failed:', emailError);
+      }
 
       setShowTxn(null);
       setTxnForm({ type: 'deposit', amount: '', description: '', reference: '', transaction_date: '' });
-      loadAccounts();
-      toast({ title: 'Transaction added', description: `${formatCurrency(Math.abs(parseFloat(txnForm.amount)))} ${txnForm.type} processed successfully.` });
+      await loadAccounts();
+      toast({ title: 'Transaction posted', description: `${formatCurrency(Math.abs(amount))} ${txnForm.type} posted successfully.` });
     } catch (e) {
       console.error(e);
-      toast({ title: 'Transaction failed', description: e.message || 'Unable to add transaction.', variant: 'destructive' });
-    }
-    setSubmitting(false);
-  }
-
-  async function handleEditTransaction() {
-    if (!editingTxn) return;
-    setSubmitting(true);
-    try {
-      const amount = parseFloat(txnForm.amount);
-      const oldAmount = editingTxn.amount;
-      const diff = (txnForm.type === 'withdrawal' ? -Math.abs(amount) : amount) - oldAmount;
-
-      await base44.entities.Transaction.update(editingTxn.id, {
-        type: txnForm.type,
-        amount: txnForm.type === 'withdrawal' ? -Math.abs(amount) : amount,
-        description: txnForm.description,
-        reference: txnForm.reference,
-        ...(txnForm.transaction_date ? { transaction_date: txnForm.transaction_date } : {}),
+      toast({
+        title: 'Posting outcome requires review',
+        description: e.message || 'Check the ledger status before retrying to avoid duplicate posting.',
+        variant: 'destructive',
       });
-
-      // Update account balance
-      const newBalance = viewingHistory.balance + diff;
-      await base44.entities.Account.update(viewingHistory.id, { balance: newBalance });
-
-      // Recalculate balance_after for all subsequent transactions
-      const allTxns = await base44.entities.Transaction.filter({ account_id: viewingHistory.id }, 'created_date', 200);
-      let runningBalance = 0;
-      for (const t of allTxns) {
-        runningBalance += (t.amount || 0);
-        if (t.id !== editingTxn.id) {
-          await base44.entities.Transaction.update(t.id, { balance_after: runningBalance });
-        } else {
-          await base44.entities.Transaction.update(t.id, { balance_after: runningBalance });
-        }
-      }
-
-      await logAuditEntry({
-        action_type: 'transaction_edited',
-        description: `Edited transaction: ${txnForm.type} of ${formatCurrency(Math.abs(parseFloat(txnForm.amount)))}`,
-        details: `Old amount: ${formatCurrency(oldAmount)}, New amount: ${formatCurrency(txnForm.type === 'withdrawal' ? -Math.abs(amount) : amount)}, Description: ${txnForm.description || 'N/A'}`,
-        account_id: viewingHistory.id,
-        amount: txnForm.type === 'withdrawal' ? -Math.abs(amount) : amount,
-        balance_before: viewingHistory.balance,
-        balance_after: newBalance,
-      });
-
-      setEditingTxn(null);
-      setTxnForm({ type: 'deposit', amount: '', description: '', reference: '', transaction_date: '' });
-      setViewingHistory({ ...viewingHistory, balance: newBalance });
-      viewHistory({ ...viewingHistory, balance: newBalance });
-      loadAccounts();
-      toast({ title: 'Transaction updated', description: 'The transaction has been edited and balances recalculated.' });
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Edit failed', description: e.message || 'Unable to edit transaction.', variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-  }
-
-  function openEditTxn(txn) {
-    setEditingTxn(txn);
-    setTxnForm({
-      type: txn.type,
-      amount: String(Math.abs(txn.amount)),
-      description: txn.description || '',
-      reference: txn.reference || '',
-      transaction_date: txn.transaction_date ? txn.transaction_date.split('T')[0] : '',
-    });
   }
 
   async function handleExportCsv() {
@@ -431,12 +361,7 @@ export default function AdminAccounts() {
                       {txn.balance_after != null ? formatCurrency(txn.balance_after) : '—'}
                     </td>
                     <td className="px-5 py-3">
-                      <button
-                        onClick={() => openEditTxn(txn)}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-[#242D38] text-[#AAB4C3] rounded-lg text-xs font-medium hover:bg-[#242D38]/80 hover:text-white transition-all"
-                      >
-                        <Pencil size={10} /> Edit
-                      </button>
+                      <span className="text-[#AAB4C3] text-[10px]">Ledger entry locked</span>
                     </td>
                   </tr>
                 ))}
@@ -472,9 +397,7 @@ export default function AdminAccounts() {
                     <span className={`font-semibold text-sm ${(txn.amount || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(txn.amount)}</span>
                     <span className="text-white text-xs font-medium">{txn.balance_after != null ? formatCurrency(txn.balance_after) : '—'}</span>
                   </div>
-                  <button onClick={() => openEditTxn(txn)} className="flex items-center gap-1 px-2.5 py-1 bg-[#242D38] text-[#AAB4C3] rounded-lg text-xs font-medium">
-                    <Pencil size={10} /> Edit
-                  </button>
+                  <span className="text-[#AAB4C3] text-[10px]">Ledger entry locked</span>
                 </div>
               ))}
               {transactions.length === 0 && <p className="text-center text-[#AAB4C3] py-8">No transactions found</p>}
@@ -524,15 +447,7 @@ export default function AdminAccounts() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Transaction Dialog */}
-        <Dialog open={!!editingTxn} onOpenChange={() => setEditingTxn(null)}>
-          <DialogContent className="bg-[#0E1A2B] border-[#242D38] max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-white">Edit Transaction</DialogTitle>
-            </DialogHeader>
-            {editingTxn && <TransactionForm txnForm={txnForm} setTxnForm={setTxnForm} submitting={submitting} onSubmit={handleEditTransaction} account={viewingHistory} isEdit />}
-          </DialogContent>
-        </Dialog>
+
       </div>
     );
   }
