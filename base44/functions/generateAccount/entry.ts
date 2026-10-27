@@ -48,8 +48,18 @@ Deno.serve(async (req) => {
     // Generate a unique 10-digit account number. The entity API in this project
     // does not expose a verified database uniqueness constraint, so this remains
     // a collision check rather than a guarantee under concurrent account creation.
-    const existingAccounts = await base44.asServiceRole.entities.Account.list('-created_date', 500);
-    const existingNumbers = new Set((existingAccounts || []).map(a => a.account_number).filter(Boolean));
+    const existingNumbers = new Set<string>();
+    const PAGE_SIZE = 500;
+    let skip = 0;
+    while (true) {
+      const page = await base44.asServiceRole.entities.Account.filter({}, '-created_date', PAGE_SIZE, skip);
+      const rows = Array.isArray(page) ? page : [];
+      for (const account of rows) {
+        if (account.account_number) existingNumbers.add(String(account.account_number));
+      }
+      if (rows.length < PAGE_SIZE) break;
+      skip += PAGE_SIZE;
+    }
 
     let accountNumber = '';
     for (let attempts = 0; attempts < 100; attempts++) {
