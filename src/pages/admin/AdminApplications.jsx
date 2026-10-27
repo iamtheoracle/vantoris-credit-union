@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { formatCurrency, generateAccountNumber } from '@/lib/formatCurrency';
+import { formatCurrency } from '@/lib/formatCurrency';
 import StatusBadge from '@/components/vantoris/StatusBadge';
 import OperationsPageLayout from '@/components/vantoris/OperationsPageLayout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -88,36 +88,17 @@ export default function AdminApplications() {
         if (!app) continue;
         const applicant = await base44.entities.User.get(app.user_id);
         if (hasOperationsAccess(applicant?.role)) continue;
-        const acctNum = generateAccountNumber();
-        const account = await base44.entities.Account.create({
+        const result = await base44.functions.invoke('generateAccount', {
           user_id: app.user_id,
-          account_number: acctNum,
           account_type: app.account_type,
           account_name: app.business_name
             ? `${app.business_name} (${app.account_type})`
             : `${app.full_name} - ${app.account_type}`,
-          balance: 0,
-          status: 'active',
           application_id: app.id,
+          opening_balance: 0,
         });
-        await base44.entities.Transaction.create({
-          account_id: account.id,
-          type: 'opening_balance',
-          amount: 0,
-          description: 'Opening Balance',
-          balance_after: 0,
-          created_by_admin: true,
-        });
-        await base44.entities.Application.update(id, {
-          application_status: 'approved',
-          admin_notes: 'Bulk approved',
-        });
-        await base44.entities.Notification.create({
-          user_id: app.user_id,
-          title: 'Account Approved',
-          message: `Your ${app.account_type} account has been approved. Account: ${acctNum}`,
-          type: 'success',
-        });
+        if (result?.data?.error) throw new Error(result.data.error);
+        if (!result?.data?.success) throw new Error(`Account opening was not confirmed for application ${id}.`);
       }
       setSelectedIds([]);
       setBulkMode(false);
@@ -165,75 +146,50 @@ export default function AdminApplications() {
     try {
       const applicant = await base44.entities.User.get(selected.user_id);
       if (hasOperationsAccess(applicant?.role)) {
-        setAdminNotes('Cannot approve — this user has an administrative role and cannot hold investment accounts.');
+        setAdminNotes('Cannot approve — this user has an administrative role and cannot hold member accounts.');
         setSubmitting(false);
         return;
       }
-      const acctNum = generateAccountNumber();
-      const balance = parseFloat(openingBalance) || 0;
 
-      // Create the account
-      const account = await base44.entities.Account.create({
+      const balance = openingBalance.trim() === '' ? 0 : Number(openingBalance);
+      if (!Number.isFinite(balance) || balance !== 0) {
+        toast({
+          title: 'Opening balance must be zero',
+          description: 'New accounts start at zero. Record an opening deposit only after funds are verified and settled through the approved ledger workflow.',
+          variant: 'destructive',
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      const result = await base44.functions.invoke('generateAccount', {
         user_id: selected.user_id,
-        account_number: acctNum,
         account_type: selected.account_type,
         account_name: selected.business_name
           ? `${selected.business_name} (${selected.account_type})`
           : `${selected.full_name} - ${selected.account_type}`,
-        balance: balance,
-        status: 'active',
         application_id: selected.id,
-      });
-
-      // Create opening balance transaction
-      if (balance > 0) {
-        await base44.entities.Transaction.create({
-          account_id: account.id,
-          type: 'opening_balance',
-          amount: balance,
-          description: 'Opening Balance',
-          balance_after: balance,
-          created_by_admin: true,
-        });
-      }
-
-      // Update application
-      await base44.entities.Application.update(selected.id, {
-        application_status: 'approved',
+        opening_balance: 0,
         admin_notes: adminNotes,
-        opening_balance: balance,
-        opening_contribution_status: 'approved',
       });
-
-      // Notify member
-      await base44.entities.Notification.create({
-        user_id: selected.user_id,
-        title: 'Account Approved',
-        message: `Your ${selected.account_type} account has been approved. Account: ${acctNum}`,
-        type: 'success',
-      });
-
-      await logAuditEntry({
-        action_type: 'application_approved',
-        description: `Application approved for ${selected.full_name} — ${selected.account_type} account ${acctNum}`,
-        details: `Opening balance: ${formatCurrency(balance)}, Notes: ${adminNotes || 'None'}`,
-        account_id: account.id,
-        amount: balance,
-        balance_before: 0,
-        balance_after: balance,
-        target_user_id: selected.user_id,
-      });
+      if (result?.data?.error) throw new Error(result.data.error);
+      if (!result?.data?.success) throw new Error('Account opening was not confirmed. Refresh the application before retrying.');
 
       setSelected(null);
       setOpeningBalance('');
       setAdminNotes('');
-      loadApps();
-      toast({ title: 'Application approved', description: `${selected.full_name}'s ${selected.account_type} account has been created.` });
+      await loadApps();
+      toast({
+        title: result.data.existing_account ? 'Account already opened' : 'Application approved',
+        description: `${selected.full_name}'s ${selected.account_type} account is active at a zero opening balance.`,
+      });
     } catch (e) {
       console.error(e);
-      toast({ title: 'Approval failed', description: e.message || 'Unable to approve application.', variant: 'destructive' });
+      toast({ title: 'Approval requires review', description: e.message || 'Check application and account status before retrying.', variant: 'destructive' });
+      await loadApps().catch(() => {});
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   }
 
   async function handleReject() {
