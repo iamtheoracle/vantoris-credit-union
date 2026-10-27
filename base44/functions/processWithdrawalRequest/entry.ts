@@ -66,12 +66,12 @@ export default async function(req: Request): Promise<Response> {
 
     const account = await base44.asServiceRole.entities.Account.get(request.account_id).catch(() => null);
     if (!account || account.user_id !== request.user_id) {
-      await requests.update(request.id, { status: 'reconciliation_required' }).catch(() => {});
-      return Response.json({ error: 'Withdrawal account is missing or does not belong to the requesting member; manual reconciliation required', withdrawal_request_id: request.id }, { status: 409 });
+      await requests.update(request.id, { status: 'pending', admin_notes: notes || 'Review blocked: account ownership could not be verified' }).catch(() => {});
+      return Response.json({ error: 'Withdrawal account is missing or does not belong to the requesting member; no posting was attempted' }, { status: 409 });
     }
     if (account.status !== 'active') {
-      await requests.update(request.id, { status: 'reconciliation_required' }).catch(() => {});
-      return Response.json({ error: 'Withdrawal account is not explicitly active; manual reconciliation required', withdrawal_request_id: request.id }, { status: 409 });
+      await requests.update(request.id, { status: 'pending', admin_notes: notes || 'Review blocked: account is not active' }).catch(() => {});
+      return Response.json({ error: 'Withdrawal account is not explicitly active; no posting was attempted' }, { status: 409 });
     }
 
     const currentBalance = Number(account.balance ?? 0);
