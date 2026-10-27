@@ -14,7 +14,10 @@ export default async function(req: Request): Promise<Response> {
     if (!user?.id) return Response.json({ error: 'Authentication required' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Admin access required' }, { status: 403 });
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return Response.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
     const transactionId = typeof body.transaction_id === 'string' ? body.transaction_id.trim() : '';
     const decision = body.decision;
     if (!transactionId || !['approve', 'decline'].includes(decision)) {
@@ -58,8 +61,9 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ error: 'Transaction owner does not match the account owner; posting blocked for reconciliation' }, { status: 409 });
     }
 
+    const type = String(txn.type || '').toLowerCase();
     const amount = Number(txn.amount);
-    if (!Number.isFinite(amount) || amount === 0 || (txn.type !== 'adjustment' && amount < 0)) {
+    if (!Number.isFinite(amount) || amount === 0 || (type !== 'adjustment' && amount < 0)) {
       return Response.json({ error: 'Transaction amount is invalid' }, { status: 422 });
     }
 
@@ -77,7 +81,6 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ error: 'Account balance is invalid; transaction left in processing for operator reconciliation' }, { status: 422 });
     }
 
-    const type = String(txn.type).toLowerCase();
     let delta;
     if (type === 'adjustment') delta = amount;
     else if (['withdrawal', 'fee'].includes(type)) delta = -Math.abs(amount);
