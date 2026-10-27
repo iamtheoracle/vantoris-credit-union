@@ -28,6 +28,53 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ error: 'Maximum 500 transactions per import' }, { status: 400 });
     }
 
+    // Deterministic fingerprint makes ordinary client retries replay the same batch
+    // rather than post the same rows again. This is not a concurrency lock: the
+    // entity API has no verified unique constraint or atomic create-if-absent.
+    const fingerprintPayload = JSON.stringify({ requested_by: user.id, transactions });
+    const fingerprintBytes = new TextEncoder().encode(fingerprintPayload);
+    const digest = await crypto.subtle.digest('SHA-256', fingerprintBytes);
+    const idempotencyKey = Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+
+    const existingBatches = await base44.asServiceRole.entities.TransactionImportBatch.filter({
+      idempotency_key: idempotencyKey,
+      requested_by: user.id,
+    }, '-created_date', 10);
+    const existingBatch = Array.isArray(existingBatches) ? existingBatches[0] : null;
+    if (existingBatch) {
+      if (existingBatch.status === 'completed' || existingBatch.status === 'completed_with_errors') {
+        try {
+          const priorResult = JSON.parse(existingBatch.result_json || '');
+          return Response.json({ ...priorResult, idempotent_replay: true }, {
+            status: priorResult.errors?.length ? 207 : 200,
+          });
+        } catch {
+          return Response.json({
+            error: 'A previous batch exists but its saved result is unreadable. Reconcile the batch before retrying.',
+            batch_id: existingBatch.id,
+          }, { status: 409 });
+        }
+      }
+      return Response.json({
+        error: 'This import batch already exists and is not safely repeatable. Reconcile it before retrying.',
+        batch_id: existingBatch.id,
+        batch_status: existingBatch.status,
+      }, { status: 409 });
+    }
+
+    const batch = await base44.asServiceRole.entities.TransactionImportBatch.create({
+      idempotency_key: idempotencyKey,
+      requested_by: user.id,
+      status: 'processing',
+      request_count: 1,
+      row_count: transactions.length,
+      created_count: 0,
+      skipped_count: 0,
+      error_count: 0,
+    });
+
     // Read all account pages rather than silently ignoring accounts after the first 500.
     const accounts = [];
     let skip = 0;
@@ -172,8 +219,10 @@ export default async function(req: Request): Promise<Response> {
       auditLogError = auditError?.message || 'Audit log write failed after transaction processing';
     }
 
-    return Response.json({
+    const responsePayload = {
       success: errors.length === 0 && auditLogError === null,
+      batch_id: batch.id,
+      idempotency_key: idempotencyKey,
       summary: {
         total: transactions.length,
         created: created.length,
@@ -184,7 +233,25 @@ export default async function(req: Request): Promise<Response> {
       skipped,
       errors,
       audit_log_error: auditLogError,
-    }, { status: errors.length ? 207 : 200 });
+    };
+
+    // Save the final response for retry replay. If this write fails, keep the
+    // batch in processing and fail closed on a retry so operators reconcile it.
+    try {
+      await base44.asServiceRole.entities.TransactionImportBatch.update(batch.id, {
+        status: errors.length ? 'reconciliation_required' : (auditLogError ? 'completed_with_errors' : 'completed'),
+        created_count: created.length,
+        skipped_count: skipped.length,
+        error_count: errors.length,
+        result_json: JSON.stringify(responsePayload),
+        audit_log_error: auditLogError || '',
+      });
+    } catch (batchSaveError) {
+      responsePayload.success = false;
+      responsePayload.batch_save_error = batchSaveError?.message || 'Could not persist import batch results';
+    }
+
+    return Response.json(responsePayload, { status: errors.length ? 207 : 200 });
   } catch (error: any) {
     return Response.json({ error: error?.message || 'Transaction import failed' }, { status: 500 });
   }
