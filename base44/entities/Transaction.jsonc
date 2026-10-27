@@ -60,6 +60,10 @@
       "type": "string",
       "description": "Reference to the HistoricalStatement this was imported from (if source=historical_import)"
     },
+    "import_batch_id": {
+      "type": "string",
+      "description": "Reference to the TransactionImportBatch that created this historical import row"
+    },
     "status": {
       "type": "string",
       "enum": [
