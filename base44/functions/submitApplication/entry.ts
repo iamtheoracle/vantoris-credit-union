@@ -11,9 +11,11 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
  *      De-duplicate: if a pending/in_review enquiry for the same type already exists, surface it.
  */
 export default async function(req: Request): Promise<Response> {
+  if (req.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 });
   try {
     const base44 = createClientFromRequest(req);
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return Response.json({ error: 'A JSON object is required' }, { status: 400 });
 
     const {
       account_type,
@@ -29,6 +31,18 @@ export default async function(req: Request): Promise<Response> {
     if (typeof account_type !== 'string' || !allowedAccountTypes.has(account_type)) {
       return Response.json({ error: 'A supported account_type is required' }, { status: 400 });
     }
+
+    const boundedTextFields = [
+      ['full_name', full_name, 120], ['email', email, 254], ['phone', phone, 40],
+      ['address', address, 500], ['business_name', business_name, 160], ['reason', reason, 2000],
+    ];
+    for (const [field, value, maxLength] of boundedTextFields) {
+      if (value != null && (typeof value !== 'string' || value.length > maxLength)) {
+        return Response.json({ error: 'Invalid or oversized field: ' + field }, { status: 400 });
+      }
+    }
+    if (full_name != null && !full_name.trim()) return Response.json({ error: 'full_name cannot be blank' }, { status: 400 });
+    if (email != null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return Response.json({ error: 'A valid email address is required' }, { status: 400 });
 
     // Identify the caller
     const me = await base44.auth.me();
@@ -46,7 +60,7 @@ export default async function(req: Request): Promise<Response> {
 
     // --- Case 1: Zero approved accounts — allow first Application ---
     if (heldTypes.length === 0) {
-      if (!full_name || !email) {
+      if (!full_name?.trim() || !email?.trim()) {
         return Response.json(
           { error: 'full_name and email are required to create an Application' },
           { status: 400 },
@@ -54,8 +68,8 @@ export default async function(req: Request): Promise<Response> {
       }
       const app = await base44.entities.Application.create({
         user_id: me.id,
-        full_name,
-        email,
+        full_name: full_name.trim(),
+        email: email.trim().toLowerCase(),
         phone,
         address,
         business_name,
@@ -96,7 +110,7 @@ export default async function(req: Request): Promise<Response> {
 
     const enquiry = await base44.entities.AccountEnquiry.create({
       requested_product_type: account_type,
-      reason: reason || '',
+      reason: reason?.trim() || '',
       status: 'pending',
     });
 
