@@ -58,6 +58,21 @@ export default async function(req: Request): Promise<Response> {
 
     const heldTypes: string[] = approvedApps.map((a: any) => a.account_type);
 
+    // Return an existing pending application rather than creating a routine duplicate.
+    // This lookup is not an atomic lock; simultaneous submissions still need a backend uniqueness guarantee.
+    const pendingApps: any[] = await base44.asServiceRole.entities.Application.filter({
+      user_id: me.id,
+      account_type,
+      application_status: 'pending',
+    });
+    if (pendingApps.length > 0) {
+      return Response.json({
+        outcome: 'application_exists',
+        application: pendingApps[0],
+        message: 'An application for this account type is already pending review.',
+      });
+    }
+
     // --- Case 1: Zero approved accounts — allow first Application ---
     if (heldTypes.length === 0) {
       if (!full_name?.trim() || !email?.trim()) {
