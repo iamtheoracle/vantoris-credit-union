@@ -32,8 +32,15 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ error: 'Transaction is not pending and cannot be processed again', status }, { status: 409 });
     }
 
+    const storedStatus = typeof txn.status === 'string' ? txn.status : 'pending';
     if (decision === 'decline') {
-      await base44.asServiceRole.entities.Transaction.update(txn.id, { status: 'declined' });
+      const claim = await base44.asServiceRole.entities.Transaction.updateMany(
+        { id: txn.id, status: storedStatus },
+        { $set: { status: 'declined' } }
+      );
+      if (claim.updated !== 1) {
+        return Response.json({ error: 'Transaction changed concurrently; refresh before making another decision' }, { status: 409 });
+      }
       await base44.asServiceRole.entities.AuditLog.create({
         action_type: 'transaction_declined',
         description: `Transaction ${txn.id} declined by ${user.full_name || user.email || user.id}`,
@@ -54,8 +61,8 @@ export default async function(req: Request): Promise<Response> {
       ? await base44.asServiceRole.entities.Account.get(txn.account_id).catch(() => null)
       : null;
     if (!account) return Response.json({ error: 'The transaction account could not be verified' }, { status: 422 });
-    if (['frozen', 'closed'].includes(String(account.status || '').toLowerCase())) {
-      return Response.json({ error: 'Cannot post to a frozen or closed account' }, { status: 409 });
+    if (String(account.status || '').toLowerCase() !== 'active') {
+      return Response.json({ error: 'Account is not explicitly active; posting blocked' }, { status: 409 });
     }
     if (txn.user_id && account.user_id && txn.user_id !== account.user_id) {
       return Response.json({ error: 'Transaction owner does not match the account owner; posting blocked for reconciliation' }, { status: 409 });
@@ -67,13 +74,14 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ error: 'Transaction amount is invalid' }, { status: 422 });
     }
 
-    // Mark the record as in progress before mutating the account. Base44's entity
-    // API does not expose a conditional compare-and-swap here, so this is a
-    // best-effort duplicate guard, not a database transaction or concurrency lock.
-    await base44.asServiceRole.entities.Transaction.update(txn.id, { status: 'processing' });
-    const claimed = await base44.asServiceRole.entities.Transaction.get(txn.id).catch(() => null);
-    if (!claimed || String(claimed.status).toLowerCase() !== 'processing') {
-      return Response.json({ error: 'Could not claim transaction for processing; refresh and reconcile before retrying' }, { status: 409 });
+    // Base44 documents updateMany with a single-record id plus matching conditions
+    // as an atomic claim. This prevents two approvals from claiming the same pending row.
+    const claim = await base44.asServiceRole.entities.Transaction.updateMany(
+      { id: txn.id, status: storedStatus },
+      { $set: { status: 'processing' } }
+    );
+    if (claim.updated !== 1) {
+      return Response.json({ error: 'Transaction changed concurrently; refresh and reconcile before retrying' }, { status: 409 });
     }
 
     const currentBalance = Number(account.balance ?? 0);
@@ -94,7 +102,18 @@ export default async function(req: Request): Promise<Response> {
     }
 
     try {
-      await base44.asServiceRole.entities.Account.update(account.id, { balance: nextBalance });
+      // Compare-and-swap the balance so two different transactions cannot overwrite
+      // one another's balance from a stale read. A lost race is held for reconciliation.
+      const balanceWrite = await base44.asServiceRole.entities.Account.updateMany(
+        { id: account.id, balance: currentBalance, status: 'active' },
+        { $set: { balance: nextBalance } }
+      );
+      if (balanceWrite.updated !== 1) {
+        return Response.json({
+          error: 'Account balance or status changed concurrently. Transaction remains in processing for reconciliation; do not retry automatically.',
+          transaction_id: txn.id,
+        }, { status: 409 });
+      }
       await base44.asServiceRole.entities.Transaction.update(txn.id, {
         status: 'completed',
         balance_after: nextBalance,
