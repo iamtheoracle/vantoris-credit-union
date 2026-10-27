@@ -185,6 +185,12 @@ export default function BulkTransactionImport() {
               <p className="text-xs text-gray mb-3">Import batch reference: <code>{results.batch_id}</code></p>
             )}
 
+            {results.batch_save_error && (
+              <div role="alert" className="mb-4 p-3 rounded-lg border border-warning/30 bg-warning/5 text-sm text-warning">
+                Transaction results were produced, but the batch record could not be finalized: {results.batch_save_error}. The batch remains blocked from automatic retry; reconcile the batch and account ledger before proceeding.
+              </div>
+            )}
+
             {results.audit_log_error && (
               <div role="alert" className="mb-4 p-3 rounded-lg border border-warning/30 bg-warning/5 text-sm text-warning">
                 Ledger processing returned results, but the audit log could not be saved: {results.audit_log_error}. Do not re-import this file automatically; reconcile the listed results first.
