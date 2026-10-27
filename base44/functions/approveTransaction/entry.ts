@@ -51,6 +51,141 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ success: true, decision, transaction_id: txn.id, status: 'declined' });
     }
 
+    if (String(txn.type || '').toLowerCase() === 'send') {
+      const sender = txn.account_id
+        ? await base44.asServiceRole.entities.Account.get(txn.account_id).catch(() => null)
+        : null;
+      if (!sender || !txn.user_id || sender.user_id !== txn.user_id) {
+        return Response.json({ error: 'Sender account ownership could not be verified; transfer blocked' }, { status: 422 });
+      }
+      if (sender.status !== 'active') return Response.json({ error: 'Sender account is not active; transfer blocked' }, { status: 409 });
+
+      const recipientUserId = typeof txn.counterparty_user_id === 'string' ? txn.counterparty_user_id.trim() : '';
+      if (!recipientUserId || recipientUserId === txn.user_id) {
+        return Response.json({ error: 'A verified, different recipient member is required for internal transfers' }, { status: 422 });
+      }
+      const recipientAccounts = await base44.asServiceRole.entities.Account.filter(
+        { user_id: recipientUserId, status: 'active' },
+        '-created_date',
+        100
+      ).catch(() => []);
+      if (!Array.isArray(recipientAccounts) || recipientAccounts.length !== 1) {
+        return Response.json({ error: 'Recipient must have exactly one active account so the destination is unambiguous; no transfer was posted' }, { status: 409 });
+      }
+      const recipient = recipientAccounts[0];
+      if (!recipient || recipient.user_id !== recipientUserId || recipient.id === sender.id) {
+        return Response.json({ error: 'Recipient account could not be verified; transfer blocked' }, { status: 422 });
+      }
+
+      const signedAmount = Number(txn.amount);
+      if (!Number.isFinite(signedAmount) || signedAmount >= 0) {
+        return Response.json({ error: 'Internal transfer amount must be a finite negative sender debit' }, { status: 422 });
+      }
+      const amount = Math.abs(signedAmount);
+      const senderBalance = Number(sender.balance ?? 0);
+      const recipientBalance = Number(recipient.balance ?? 0);
+      if (![senderBalance, recipientBalance].every(Number.isFinite)) {
+        return Response.json({ error: 'Sender or recipient balance is invalid; transfer blocked' }, { status: 422 });
+      }
+      if (senderBalance < amount) return Response.json({ error: 'Insufficient available balance for this transfer' }, { status: 409 });
+
+      const nextSenderBalance = Math.round((senderBalance - amount) * 100) / 100;
+      const nextRecipientBalance = Math.round((recipientBalance + amount) * 100) / 100;
+      const claim = await base44.asServiceRole.entities.Transaction.updateMany(
+        { id: txn.id, status: storedStatus },
+        { $set: { status: 'processing' } }
+      );
+      if (claim.updated !== 1) {
+        return Response.json({ error: 'Transfer changed concurrently; refresh and reconcile before retrying' }, { status: 409 });
+      }
+
+      let recipientTxn: any = null;
+      try {
+        recipientTxn = await base44.asServiceRole.entities.Transaction.create({
+          account_id: recipient.id,
+          user_id: recipientUserId,
+          type: 'transfer',
+          amount,
+          description: `Transfer received from ${txn.user_id}`,
+          reference: `TR-${txn.id.slice(-8)}`,
+          balance_after: nextRecipientBalance,
+          created_by_admin: true,
+          status: 'processing',
+          source: 'admin_entry',
+          transfer_direction: 'in',
+          counterparty: txn.user_id,
+          counterparty_user_id: txn.user_id,
+          counterparty_account_id: sender.id,
+          transaction_date: new Date().toISOString().slice(0, 10),
+          posting_date: new Date().toISOString().slice(0, 10),
+        });
+
+        const debit = await base44.asServiceRole.entities.Account.updateMany(
+          { id: sender.id, user_id: txn.user_id, balance: senderBalance, status: 'active' },
+          { $set: { balance: nextSenderBalance } }
+        );
+        if (debit.updated !== 1) {
+          return Response.json({
+            error: 'Sender account changed concurrently. Both transfer records remain in processing for reconciliation; do not retry automatically.',
+            transaction_id: txn.id,
+            recipient_transaction_id: recipientTxn.id,
+          }, { status: 409 });
+        }
+
+        const credit = await base44.asServiceRole.entities.Account.updateMany(
+          { id: recipient.id, user_id: recipientUserId, balance: recipientBalance, status: 'active' },
+          { $set: { balance: nextRecipientBalance } }
+        );
+        if (credit.updated !== 1) {
+          return Response.json({
+            error: 'Sender debit succeeded but recipient credit did not. Both transfer records remain in processing for manual reconciliation; do not retry automatically.',
+            transaction_id: txn.id,
+            recipient_transaction_id: recipientTxn.id,
+          }, { status: 409 });
+        }
+
+        await base44.asServiceRole.entities.Transaction.update(txn.id, {
+          status: 'completed',
+          balance_after: nextSenderBalance,
+          transfer_direction: 'out',
+          counterparty_account_id: recipient.id,
+        });
+        await base44.asServiceRole.entities.Transaction.update(recipientTxn.id, { status: 'completed', balance_after: nextRecipientBalance });
+      } catch (_error) {
+        return Response.json({
+          error: 'Internal transfer did not complete cleanly. Inspect both accounts and ledger records before retrying.',
+          transaction_id: txn.id,
+          recipient_transaction_id: recipientTxn?.id || null,
+        }, { status: 500 });
+      }
+
+      await base44.asServiceRole.entities.AuditLog.create({
+        action_type: 'transaction_approved',
+        description: `Internal transfer ${txn.id} posted by ${user.full_name || user.email || user.id}`,
+        details: JSON.stringify({ sender_account_id: sender.id, recipient_account_id: recipient.id, amount, sender_balance_after: nextSenderBalance, recipient_balance_after: nextRecipientBalance, recipient_transaction_id: recipientTxn.id }),
+        target_user_id: recipientUserId,
+        user_id: user.id,
+        admin_name: user.full_name || user.email || 'Admin',
+      }).catch(() => {});
+      await base44.asServiceRole.entities.Notification.create({
+        user_id: recipientUserId,
+        title: 'Transfer received',
+        message: `You received a transfer of ${amount.toFixed(2)}.`,
+        type: 'info',
+        status: 'completed',
+      }).catch(() => {});
+
+      return Response.json({
+        success: true,
+        decision,
+        transaction_id: txn.id,
+        recipient_transaction_id: recipientTxn.id,
+        status: 'completed',
+        balance_after: nextSenderBalance,
+        recipient_balance_after: nextRecipientBalance,
+      });
+    }
+
     if (!SUPPORTED_TYPES.has(String(txn.type || '').toLowerCase())) {
       return Response.json({
         error: `Transaction type "${txn.type}" is not supported for direct ledger approval. Use the configured payment/transfer workflow.`,
