@@ -68,7 +68,7 @@ export default function InvestmentDeposits() {
                 <p className="text-xs text-gray mt-0.5">
                   Submitted: {req.created_date?.substring(0, 10)} · Status: <span className="capitalize">{req.status.replace(/_/g, ' ')}</span>
                 </p>
-                {req.review_notes && <p className="text-xs text-gray mt-1">Notes: {req.review_notes}</p>}
+                {(req.failure_reason || req.review_notes) && <p className="text-xs text-gray mt-1">Notes: {req.failure_reason || req.review_notes}</p>}
               </div>
               {req.status === 'requested' && (
                 <div className="flex gap-2">
