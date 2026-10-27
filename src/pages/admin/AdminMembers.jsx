@@ -46,29 +46,14 @@ export default function AdminMembers() {
 
   async function handleDeleteMember() {
     if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      // Delete member's accounts and transactions first
-      const memberAccts = accounts.filter(a => a.user_id === deleteTarget.id);
-      for (const acct of memberAccts) {
-        await base44.entities.Transaction.deleteMany({ account_id: acct.id });
-        await base44.entities.Account.delete(acct.id);
-      }
-      await base44.entities.User.delete(deleteTarget.id);
-      await logAuditEntry({
-        action_type: 'account_deleted',
-        description: `Deleted member ${deleteTarget.full_name} (${deleteTarget.email})`,
-        details: `Email: ${deleteTarget.email} | All accounts, transactions, and associated data permanently removed`,
-        target_user_id: deleteTarget.id,
-      });
-      setDeleteTarget(null);
-      loadData();
-      toast({ title: 'Member deleted', description: `${deleteTarget.full_name} and all associated data have been removed.` });
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Delete failed', description: e.message || 'Unable to delete member.', variant: 'destructive' });
-    }
-    setDeleting(false);
+    // Financial records and audit history must not be deleted through this client screen.
+    // A compliant retention/deactivation workflow is not implemented in this repository.
+    toast({
+      title: 'Permanent deletion blocked',
+      description: 'Member deletion is disabled until a retention-aware deactivation workflow is available. Financial accounts, transactions, applications, and audit history must not be erased from this screen.',
+      variant: 'destructive',
+    });
+    setDeleteTarget(null);
   }
 
   if (loading) {
