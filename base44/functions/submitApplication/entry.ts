@@ -69,16 +69,23 @@ export default async function(req: Request): Promise<Response> {
 
     // Return an existing pending application rather than creating a routine duplicate.
     // This lookup is not an atomic lock; simultaneous submissions still need a backend uniqueness guarantee.
-    const pendingApps: any[] = await base44.asServiceRole.entities.Application.filter({
-      user_id: me.id,
-      account_type,
-      application_status: 'pending',
-    });
-    if (pendingApps.length > 0) {
+    const openApplications: any[] = [];
+    for (const applicationStatus of ['pending', 'processing', 'reconciliation_required']) {
+      const matches: any[] = await base44.asServiceRole.entities.Application.filter({
+        user_id: me.id,
+        account_type,
+        application_status: applicationStatus,
+      });
+      openApplications.push(...matches);
+    }
+    if (openApplications.length > 0) {
+      const existing = openApplications[0];
       return Response.json({
         outcome: 'application_exists',
-        application: pendingApps[0],
-        message: 'An application for this account type is already pending review.',
+        application: existing,
+        message: existing.application_status === 'pending'
+          ? 'An application for this account type is already pending review.'
+          : 'An application for this account type is being processed or requires operator reconciliation; do not submit another application.',
       });
     }
 
