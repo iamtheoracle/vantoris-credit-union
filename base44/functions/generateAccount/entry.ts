@@ -23,6 +23,7 @@ Deno.serve(async (req) => {
     const account_type = typeof body.account_type === 'string' ? body.account_type.trim() : '';
     const account_name = typeof body.account_name === 'string' ? body.account_name.trim() : '';
     const application_id = typeof body.application_id === 'string' ? body.application_id.trim() : '';
+    const admin_notes = typeof body.admin_notes === 'string' ? body.admin_notes.trim().slice(0, 2000) : '';
     const openingBalance = body.opening_balance == null || body.opening_balance === '' ? 0 : Number(body.opening_balance);
 
     if (!user_id || !account_type || !account_name) {
@@ -67,6 +68,15 @@ Deno.serve(async (req) => {
       if (Array.isArray(linkedAccounts) && linkedAccounts.length > 0) {
         const existing = linkedAccounts.find((row: any) => row.user_id === user_id && row.account_type === account_type);
         if (existing?.status === 'active') {
+          if (application.application_status === 'pending') {
+            const approvedExisting = await base44.asServiceRole.entities.Application.updateMany(
+              { id: application.id, application_status: 'pending', kyc_status: 'approved' },
+              { $set: { application_status: 'approved', opening_balance: 0, admin_notes } }
+            );
+            if (approvedExisting.updated !== 1) {
+              return Response.json({ error: 'Existing active account found, but application status could not be reconciled', account_id: existing.id }, { status: 409 });
+            }
+          }
           return Response.json({
             success: true,
             existing_account: true,
@@ -151,6 +161,7 @@ Deno.serve(async (req) => {
           application_status: 'approved',
           opening_balance: 0,
           opening_contribution_status: application.opening_contribution_status === 'approved' ? 'approved' : 'not_started',
+          admin_notes,
         } }
       );
       if (approved.updated !== 1) {
