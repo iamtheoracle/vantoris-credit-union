@@ -54,9 +54,11 @@
       "type": "string",
       "enum": [
         "pending",
+        "processing",
         "completed",
         "failed",
-        "reversed"
+        "reversed",
+        "reconciliation_required"
       ],
       "default": "pending"
     },
