@@ -136,9 +136,11 @@ export default async function(req) {
 
       const escape = (val) => {
         if (val === null || val === undefined) return '';
-        const str = String(val);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-          return `"${str.replace(/"/g, '""')}"`;
+        let str = String(val);
+        // Prefix spreadsheet expression markers in untrusted text cells.
+        if (typeof val === 'string' && /^[=+@-]/.test(str)) str = "'" + str;
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          return '"' + str.replace(/"/g, '""') + '"';
         }
         return str;
       };
