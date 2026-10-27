@@ -126,8 +126,8 @@ export default async function(req: Request): Promise<Response> {
           skipped.push({ row: rowNumber, reason: `Account not found: ${account_number}` });
           continue;
         }
-        if (['frozen', 'closed'].includes(String(account.status || '').toLowerCase())) {
-          skipped.push({ row: rowNumber, reason: `Account is ${account.status} and cannot receive imported postings` });
+        if (String(account.status || '').toLowerCase() !== 'active') {
+          skipped.push({ row: rowNumber, reason: 'Account is not explicitly active and cannot receive imported postings' });
           continue;
         }
 
@@ -168,7 +168,21 @@ export default async function(req: Request): Promise<Response> {
         });
 
         try {
-          await base44.asServiceRole.entities.Account.update(account.id, { balance: newBalance });
+          // Compare-and-swap prevents a stale import balance from overwriting a
+          // concurrent transaction. A lost race remains processing for reconciliation.
+          const balanceWrite = await base44.asServiceRole.entities.Account.updateMany(
+            { id: account.id, balance: currentBalance, status: 'active' },
+            { $set: { balance: newBalance } }
+          );
+          if (balanceWrite.updated !== 1) {
+            errors.push({
+              row: rowNumber,
+              transaction_id: record.id,
+              account_id: account.id,
+              error: 'Account balance or status changed concurrently. Transaction remains in processing for manual reconciliation; do not retry this row automatically.',
+            });
+            continue;
+          }
           await base44.asServiceRole.entities.Transaction.update(record.id, {
             status: 'completed',
             balance_after: newBalance,
