@@ -22,14 +22,12 @@ export default async function(req: Request): Promise<Response> {
       phone,
       address,
       business_name,
-      kyc_status,
-      kyc_documents,
-      kyc_notes,
       reason,
     } = body;
 
-    if (!account_type) {
-      return Response.json({ error: 'account_type is required' }, { status: 400 });
+    const allowedAccountTypes = new Set(['Checking', 'Savings', 'Money Market', 'CD', 'Joint', 'Business']);
+    if (typeof account_type !== 'string' || !allowedAccountTypes.has(account_type)) {
+      return Response.json({ error: 'A supported account_type is required' }, { status: 400 });
     }
 
     // Identify the caller
@@ -62,10 +60,8 @@ export default async function(req: Request): Promise<Response> {
         address,
         business_name,
         account_type,
-        kyc_status: kyc_status || 'not_started',
+        kyc_status: 'not_started',
         application_status: 'pending',
-        kyc_documents,
-        kyc_notes,
       });
       return Response.json({ outcome: 'application_created', application: app });
     }
