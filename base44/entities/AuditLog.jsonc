@@ -30,7 +30,10 @@
         "kyc_rejected",
         "super_admin_exception_auth",
         "transaction_approved",
-        "transaction_declined"
+        "transaction_declined",
+        "investment_deposit_processed",
+        "investment_withdrawal_processed",
+        "investment_request_rejected"
       ],
       "description": "The type of administrative action performed"
     },
