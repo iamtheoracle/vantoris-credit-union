@@ -151,22 +151,29 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
-    await base44.asServiceRole.entities.AuditLog.create({
-      action_type: 'transaction_created',
-      description: `Historical transaction import by ${user.full_name || user.email || user.id}: ${created.length} completed, ${skipped.length} skipped, ${errors.length} errors`,
-      details: JSON.stringify({
-        total: transactions.length,
-        created: created.length,
-        skipped: skipped.length,
-        errors: errors.length,
-        source: 'historical_import',
-      }),
-      user_id: user.id,
-      admin_name: user.full_name || user.email || 'Admin',
-    });
+    // Ledger rows may already be committed at this point. Do not turn an audit
+    // write failure into a generic 500: clients could retry and duplicate postings.
+    let auditLogError: string | null = null;
+    try {
+      await base44.asServiceRole.entities.AuditLog.create({
+        action_type: 'transaction_created',
+        description: `Historical transaction import by ${user.full_name || user.email || user.id}: ${created.length} completed, ${skipped.length} skipped, ${errors.length} errors`,
+        details: JSON.stringify({
+          total: transactions.length,
+          created: created.length,
+          skipped: skipped.length,
+          errors: errors.length,
+          source: 'historical_import',
+        }),
+        user_id: user.id,
+        admin_name: user.full_name || user.email || 'Admin',
+      });
+    } catch (auditError: any) {
+      auditLogError = auditError?.message || 'Audit log write failed after transaction processing';
+    }
 
     return Response.json({
-      success: errors.length === 0,
+      success: errors.length === 0 && auditLogError === null,
       summary: {
         total: transactions.length,
         created: created.length,
@@ -176,6 +183,7 @@ export default async function(req: Request): Promise<Response> {
       created,
       skipped,
       errors,
+      audit_log_error: auditLogError,
     }, { status: errors.length ? 207 : 200 });
   } catch (error: any) {
     return Response.json({ error: error?.message || 'Transaction import failed' }, { status: 500 });
