@@ -175,6 +175,27 @@ export default function BulkTransactionImport() {
               </div>
             </div>
 
+            {results.audit_log_error && (
+              <div role="alert" className="mb-4 p-3 rounded-lg border border-warning/30 bg-warning/5 text-sm text-warning">
+                Ledger processing returned results, but the audit log could not be saved: {results.audit_log_error}. Do not re-import this file automatically; reconcile the listed results first.
+              </div>
+            )}
+
+            {results.errors && results.errors.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-crimson uppercase tracking-wider mb-2">Posting Errors — Reconciliation Required</p>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {results.errors.map((item, i) => (
+                    <div key={i} className="text-xs text-crimson p-2 rounded-lg bg-crimson/5">
+                      <span className="font-medium">Row {item.row}:</span> {item.error || item.reason || 'Posting failed'}
+                      {item.transaction_id ? <span> · Transaction {item.transaction_id}</span> : null}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray mt-2">Do not retry rows marked as processing until their ledger and account balances have been reconciled.</p>
+              </div>
+            )}
+
             {results.skipped && results.skipped.length > 0 && (
               <div className="mb-4">
                 <p className="text-xs font-semibold text-gray uppercase tracking-wider mb-2">Skipped Rows</p>
