@@ -5,7 +5,6 @@ import { exportToCsv } from '@/lib/exportCsv';
 import StatusBadge from '@/components/vantoris/StatusBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Search, Download, History, ArrowLeft, ScrollText, Mail, Lock, Unlock, Upload } from 'lucide-react';
-import { logAuditEntry } from '@/lib/auditLogger';
 import { sendTransactionEmail } from '@/lib/transactionEmails';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -142,37 +141,21 @@ export default function AdminAccounts() {
     setToggleFreezeAccount(account);
     setFreezing(true);
     try {
-      const newStatus = account.status === 'frozen' ? 'active' : 'frozen';
-      await base44.entities.Account.update(account.id, { status: newStatus });
-      
-      // Log in audit trail
-      await logAuditEntry({
-        action_type: 'account_status_changed',
-        description: `Account ${newStatus === 'frozen' ? 'FROZEN' : 'UNFROZEN'}: ${account.account_name}`,
-        details: `Account disabled for ${newStatus === 'frozen' ? 'trading and withdrawals' : 'all operations'}`,
-        account_id: account.id,
-        target_user_id: account.user_id,
-      });
-
-      // Notify member
-      await base44.entities.Notification.create({
-        user_id: account.user_id,
-        title: newStatus === 'frozen' ? 'Account Frozen' : 'Account Unfrozen',
-        message: newStatus === 'frozen'
-          ? `Your ${account.account_name} account has been frozen and is now unavailable for trading and withdrawals.`
-          : `Your ${account.account_name} account has been unfrozen and is now available for use.`,
-        type: newStatus === 'frozen' ? 'warning' : 'success',
-      });
+      const result = await base44.functions.invoke('setAccountStatus', { account_id: account.id });
+      if (result?.data?.error) throw new Error(result.data.error);
+      if (!result?.data?.success) throw new Error('Account status change was not confirmed.');
+      const newStatus = result.data.status;
 
       setToggleFreezeAccount(null);
-      loadAccounts();
+      await loadAccounts();
       if (viewingHistory) viewHistory({ ...viewingHistory, status: newStatus });
       toast({ title: newStatus === 'frozen' ? 'Account frozen' : 'Account unfrozen', description: `${account.account_name} is now ${newStatus}.` });
     } catch (e) {
       console.error(e);
-      toast({ title: 'Action failed', description: e.message || 'Unable to change account status.', variant: 'destructive' });
+      toast({ title: 'Action failed', description: e.message || 'Refresh and verify account status before retrying.', variant: 'destructive' });
+    } finally {
+      setFreezing(false);
     }
-    setFreezing(false);
   }
 
   async function handleImportTransactions(file) {
