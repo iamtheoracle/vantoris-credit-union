@@ -39,6 +39,14 @@ export default async function(req: Request): Promise<Response> {
         { $set: { status: 'rejected', reviewed_by: user.id, reviewed_by_name: user.full_name || user.email || 'Admin', review_date: reviewedAt, review_notes: reviewNotes } }
       );
       if (rejected.updated !== 1) return Response.json({ error: 'Investment request changed concurrently; refresh before retrying' }, { status: 409 });
+      await base44.asServiceRole.entities.AuditLog.create({
+        action_type: 'investment_request_rejected',
+        description: `Investment ${requestType} request ${request.id} rejected by ${user.full_name || user.email || user.id}`,
+        details: reviewNotes || 'No reason provided',
+        target_user_id: request.user_id,
+        user_id: user.id,
+        admin_name: user.full_name || user.email || 'Admin',
+      }).catch(() => {});
       return Response.json({ success: true, request_type: requestType, request_id: request.id, status: 'rejected' });
     }
 
@@ -91,6 +99,10 @@ export default async function(req: Request): Promise<Response> {
     const nextBankBalance = Math.round((bankBalance + (requestType === 'deposit' ? -amount : amount)) * 100) / 100;
     const nextCashBalance = Math.round((cashBalance + (requestType === 'deposit' ? amount : -amount)) * 100) / 100;
     const nextTotalValue = Math.round((totalValue + (requestType === 'deposit' ? amount : -amount)) * 100) / 100;
+    if (nextCashBalance < 0 || nextTotalValue < 0) {
+      await requests.update(request.id, { status: 'requested', failure_reason: 'Transfer would create a negative portfolio balance or total value' }).catch(() => {});
+      return Response.json({ error: 'Transfer would create a negative portfolio balance or total value; no transfer was posted' }, { status: 409 });
+    }
     const transactionDate = new Date().toISOString().slice(0, 10);
     let bankTransaction: any = null;
     let investmentTransaction: any = null;
