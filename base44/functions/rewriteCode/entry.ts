@@ -1,15 +1,29 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 Deno.serve(async (req) => {
+  if (req.method !== 'POST') {
+    return Response.json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { code, instructions, language } = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return Response.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    const { code, instructions, language } = body;
 
-    if (!code || !instructions) {
-      return Response.json({ error: 'Both code and instructions are required' }, { status: 400 });
+    if (typeof code !== 'string' || !code.trim() || typeof instructions !== 'string' || !instructions.trim()) {
+      return Response.json({ error: 'Both code and instructions are required as text' }, { status: 400 });
+    }
+    if (code.length > 30000 || instructions.length > 8000) {
+      return Response.json({ error: 'Code is limited to 30,000 characters and instructions to 8,000 characters' }, { status: 413 });
+    }
+    if (language != null && (typeof language !== 'string' || language.length > 60)) {
+      return Response.json({ error: 'Language must be text and no longer than 60 characters' }, { status: 400 });
     }
 
     const prompt = `You are an expert software engineer. Rewrite the following ${language || 'code'} according to these instructions:
