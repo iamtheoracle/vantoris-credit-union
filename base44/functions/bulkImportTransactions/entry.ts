@@ -163,6 +163,7 @@ export default async function(req: Request): Promise<Response> {
           transaction_date: transactionDate || undefined,
           posting_date: new Date().toISOString().slice(0, 10),
           source: 'historical_import',
+          import_batch_id: batch.id,
           status: 'processing',
         });
 
