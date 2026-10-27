@@ -149,6 +149,9 @@ export default async function(req: Request): Promise<Response> {
           balance_after: nextSenderBalance,
           transfer_direction: 'out',
           counterparty_account_id: recipient.id,
+          source: 'admin_entry',
+          transaction_date: new Date().toISOString().slice(0, 10),
+          posting_date: new Date().toISOString().slice(0, 10),
         });
         await base44.asServiceRole.entities.Transaction.update(recipientTxn.id, { status: 'completed', balance_after: nextRecipientBalance });
       } catch (_error) {
@@ -171,6 +174,13 @@ export default async function(req: Request): Promise<Response> {
         user_id: recipientUserId,
         title: 'Transfer received',
         message: `You received a transfer of ${amount.toFixed(2)}.`,
+        type: 'info',
+        status: 'completed',
+      }).catch(() => {});
+      await base44.asServiceRole.entities.Notification.create({
+        user_id: txn.user_id,
+        title: 'Transfer sent',
+        message: `Your transfer of ${amount.toFixed(2)} to ${txn.counterparty || 'another member'} was posted.`,
         type: 'info',
         status: 'completed',
       }).catch(() => {});
