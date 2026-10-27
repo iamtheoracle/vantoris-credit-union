@@ -175,6 +175,16 @@ export default function BulkTransactionImport() {
               </div>
             </div>
 
+            {results.idempotent_replay && (
+              <div role="status" className="mb-4 p-3 rounded-lg border border-mint/30 bg-mint/5 text-sm text-foreground">
+                This exact batch was already processed. The saved result is being shown; no new transactions were posted by this retry.
+              </div>
+            )}
+
+            {results.batch_id && (
+              <p className="text-xs text-gray mb-3">Import batch reference: <code>{results.batch_id}</code></p>
+            )}
+
             {results.audit_log_error && (
               <div role="alert" className="mb-4 p-3 rounded-lg border border-warning/30 bg-warning/5 text-sm text-warning">
                 Ledger processing returned results, but the audit log could not be saved: {results.audit_log_error}. Do not re-import this file automatically; reconcile the listed results first.
