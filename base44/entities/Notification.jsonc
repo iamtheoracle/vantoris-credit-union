@@ -26,6 +26,19 @@
     },
     "link": {
       "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "declined",
+        "processing",
+        "completed",
+        "failed",
+        "reversed"
+      ],
+      "description": "Optional workflow state for notifications that represent actionable requests or transaction events."
     }
   },
   "required": [

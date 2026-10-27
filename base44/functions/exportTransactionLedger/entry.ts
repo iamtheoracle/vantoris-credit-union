@@ -14,14 +14,25 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
  * - Log every export
  */
 export default async function(req) {
+  if (req.method !== 'POST') {
+    return Response.json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
 
-    // Scheduled invocations have no user session — proceed with service role
-    // Manual invocations require admin authentication
-    const isScheduled = !user;
-    if (!isScheduled && user.role !== 'admin') {
+    // Never interpret an anonymous request as a trusted scheduler. Scheduled
+    // calls must present a separately configured bearer token; without it the
+    // endpoint fails closed. Manual calls require an authenticated administrator.
+    const configuredToken = Deno.env.get('TRANSACTION_EXPORT_SCHEDULER_TOKEN');
+    const authorization = req.headers.get('authorization') || '';
+    const suppliedToken = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    const isScheduled = !user && Boolean(configuredToken) && suppliedToken === configuredToken;
+    if (!user && !isScheduled) {
+      return Response.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    if (user && user.role !== 'admin') {
       return Response.json({ error: 'Forbidden — admin only' }, { status: 403 });
     }
 
@@ -125,9 +136,11 @@ export default async function(req) {
 
       const escape = (val) => {
         if (val === null || val === undefined) return '';
-        const str = String(val);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-          return `"${str.replace(/"/g, '""')}"`;
+        let str = String(val);
+        // Prefix spreadsheet expression markers in untrusted text cells.
+        if (typeof val === 'string' && /^[=+@-]/.test(str)) str = "'" + str;
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          return '"' + str.replace(/"/g, '""') + '"';
         }
         return str;
       };
@@ -160,10 +173,10 @@ export default async function(req) {
             'Amount': tx.amount || 0,
             'Fees': tx.type === 'fee' ? Math.abs(tx.amount || 0) : 0,
             'Net Amount': tx.type === 'withdrawal' || tx.type === 'fee' ? -(tx.amount || 0) : (tx.amount || 0),
-            'Status': tx.type === 'opening_balance' ? 'completed' : 'completed',
+            'Status': tx.status || 'pending',
             'Reference': tx.reference || '',
             'Description': tx.description || '',
-            'Approval Status': 'approved',
+            'Approval Status': tx.status === 'completed' ? 'approved' : (tx.status || 'pending'),
             'Created By': createdBy?.full_name || '',
             'Last Updated': tx.updated_date ? new Date(tx.updated_date).toISOString() : '',
             'Export Timestamp': now,

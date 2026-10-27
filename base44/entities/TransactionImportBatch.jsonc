@@ -1,0 +1,46 @@
+{
+  "name": "TransactionImportBatch",
+  "type": "object",
+  "properties": {
+    "idempotency_key": {
+      "type": "string",
+      "description": "SHA-256 fingerprint of the authenticated admin and normalized submitted transaction rows"
+    },
+    "requested_by": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["processing", "completed", "completed_with_errors", "reconciliation_required"],
+      "default": "processing"
+    },
+    "request_count": {
+      "type": "number",
+      "default": 1
+    },
+    "row_count": {
+      "type": "number",
+      "default": 0
+    },
+    "created_count": {
+      "type": "number",
+      "default": 0
+    },
+    "skipped_count": {
+      "type": "number",
+      "default": 0
+    },
+    "error_count": {
+      "type": "number",
+      "default": 0
+    },
+    "result_json": {
+      "type": "string",
+      "description": "Serialized original import response for safe replay of completed requests"
+    },
+    "audit_log_error": {
+      "type": "string"
+    }
+  },
+  "required": ["idempotency_key", "requested_by", "status"]
+}

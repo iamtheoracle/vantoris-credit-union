@@ -21,44 +21,31 @@ export default function InvestmentDeposits() {
   async function handleAction(req, action) {
     setProcessing(req.id);
     try {
-      const me = await base44.auth.me();
-      if (action === 'approve') {
-        await base44.entities.InvestmentDepositRequest.update(req.id, {
-          status: 'approved',
-          reviewed_by: me.id,
-          reviewed_by_name: me.full_name,
-          review_date: new Date().toISOString(),
-        });
-        // Credit the portfolio cash balance
-        const portfolio = await base44.entities.InvestmentPortfolio.get(req.portfolio_id);
-        await base44.entities.InvestmentPortfolio.update(req.portfolio_id, {
-          cash_balance: (portfolio.cash_balance || 0) + req.amount,
-          total_value: (portfolio.total_value || 0) + req.amount,
-        });
-        // Record the investment transaction
-        await base44.entities.InvestmentTransaction.create({
-          portfolio_id: req.portfolio_id,
-          user_id: req.user_id,
-          type: 'deposit',
-          amount: req.amount,
-          description: 'Investment deposit — approved',
-          status: 'completed',
-          transaction_date: new Date().toISOString().substring(0, 10),
-          source: 'operator_entry',
-        });
-        toast({ title: 'Deposit approved', description: `${formatCurrency(req.amount)} credited to portfolio.` });
-      } else {
-        await base44.entities.InvestmentDepositRequest.update(req.id, {
-          status: 'rejected',
-          reviewed_by: me.id,
-          reviewed_by_name: me.full_name,
-          review_date: new Date().toISOString(),
-        });
-        toast({ title: 'Deposit rejected' });
+      const result = await base44.functions.invoke('processInvestmentRequest', {
+        request_type: 'deposit',
+        request_id: req.id,
+        decision: action === 'approve' ? 'approve' : 'decline',
+      });
+      if (result?.data?.error) throw new Error(result.data.error);
+      const expectedStatus = action === 'approve' ? 'completed' : 'rejected';
+      if (!result?.data?.success || result?.data?.status !== expectedStatus) {
+        throw new Error('Request outcome was not confirmed. Refresh the request status before retrying.');
       }
-      loadData();
+
+      toast({
+        title: action === 'approve' ? 'Deposit completed' : 'Deposit rejected',
+        description: action === 'approve'
+          ? `${formatCurrency(req.amount)} transferred between the member's bank account and investment portfolio.`
+          : 'The request was rejected without changing balances.',
+      });
+      await loadData();
     } catch (err) {
-      toast({ title: 'Action failed', description: err.message, variant: 'destructive' });
+      toast({
+        title: 'Action requires review',
+        description: err.message || 'Check request and ledger status before retrying to avoid duplicate posting.',
+        variant: 'destructive',
+      });
+      await loadData().catch(() => {});
     } finally {
       setProcessing('');
     }
@@ -81,7 +68,7 @@ export default function InvestmentDeposits() {
                 <p className="text-xs text-gray mt-0.5">
                   Submitted: {req.created_date?.substring(0, 10)} · Status: <span className="capitalize">{req.status.replace(/_/g, ' ')}</span>
                 </p>
-                {req.review_notes && <p className="text-xs text-gray mt-1">Notes: {req.review_notes}</p>}
+                {(req.failure_reason || req.review_notes) && <p className="text-xs text-gray mt-1">Notes: {req.failure_reason || req.review_notes}</p>}
               </div>
               {req.status === 'requested' && (
                 <div className="flex gap-2">

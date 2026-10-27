@@ -82,22 +82,15 @@ export async function runAssignment(command) {
   if (command.type === 'send') {
     if (!account) return { ok: false, text: 'No share account to send from.' };
     if (!command.to) return { ok: false, text: 'Name the member to send to.' };
-    if (command.amount > (account.balance || 0)) return { ok: false, text: 'Insufficient shares for that amount.' };
-    const txn = await base44.entities.Transaction.create({
-      account_id: account.id,
-      user_id: me.id,
-      type: 'send',
-      amount: -Math.abs(command.amount),
-      description: `Assistant transfer to ${command.to}`,
-      status: 'pending',
-      counterparty: command.to,
-    });
-    await notifyOperators({
-      title: 'Transaction requested',
-      message: `${who} requested to send ${formatCurrency(command.amount)} to ${command.to}. txn:${txn?.id || ''}`,
-      type: 'warning',
-    });
-    return { ok: true, text: `Queued. ${formatCurrency(command.amount)} to ${command.to} is pending operator approval. Transaction ${txn?.id || 'created'}. Balance is unchanged until approved.` };
+    const row = await queueService(
+      me,
+      'zelle',
+      `Assistant requested a member transfer of ${formatCurrency(command.amount)} to "${command.to}". Recipient identity is not verified by this command; do not post funds until the member is resolved in the verified transfer flow.`
+    );
+    return {
+      ok: true,
+      text: `Transfer request queued for operator review. No money has been sent and no ledger transaction was created. Use Transfer to select a verified recipient before a member-to-member payment can be posted. Request ${row?.id || 'created'}.`,
+    };
   }
 
   if (command.type === 'deposit') {
@@ -129,13 +122,15 @@ export async function runAssignment(command) {
 
   if (command.type === 'freeze') {
     if (!account) return { ok: false, text: 'No account to freeze.' };
-    await base44.entities.Account.update(account.id, { status: 'frozen' });
-    await notifyOperators({
-      title: 'Account freeze requested',
-      message: `${who} froze ${account.account_name || account.account_type || 'an account'}.`,
-      type: 'warning',
-    });
-    return { ok: true, text: `${account.account_name || 'Account'} is marked frozen.` };
+    const row = await queueService(
+      me,
+      'freeze',
+      `Member requested a freeze for ${account.account_name || account.account_type || 'their account'} (account reference: ${account.id}).`
+    );
+    return {
+      ok: true,
+      text: `Freeze request queued for operator review. ${account.account_name || 'Account'} has not been frozen yet. Request ${row?.id || 'created'}.`,
+    };
   }
 
   if (command.type === 'flight') {
@@ -156,22 +151,13 @@ export async function runAssignment(command) {
 
   if (command.type === 'check' || command.type === 'wire' || command.type === 'zelle') {
     if (!account) return { ok: false, text: 'No share account is on this membership yet.' };
-    if (!command.amount) return { ok: false, text: 'Include an amount.' };
-    const txn = await base44.entities.Transaction.create({
-      account_id: account.id,
-      user_id: me.id,
-      type: command.type === 'check' ? 'deposit' : command.type,
-      amount: command.type === 'check' ? Math.abs(command.amount) : -Math.abs(command.amount),
-      description: `${command.type} ${command.to || command.detail || ''}`.trim(),
-      status: 'pending',
-      counterparty: command.to || '',
-    });
-    await notifyOperators({
-      title: `${command.type} requested`,
-      message: `${who} requested ${formatCurrency(command.amount)} via ${command.type}. txn:${txn?.id || ''}`,
-      type: 'warning',
-    });
-    return { ok: true, text: `Queued on the platform. ${formatCurrency(command.amount)} ${command.type} is pending operator approval. Transaction ${txn?.id || 'created'}.` };
+    if (!command.amount || !Number.isFinite(command.amount) || command.amount <= 0) return { ok: false, text: 'Include a valid positive amount.' };
+    const details = `${formatCurrency(command.amount)} via ${command.type}${command.to ? ` to ${command.to}` : command.detail ? ` — ${command.detail}` : ''}. Settlement/provider confirmation is required before creating or posting a ledger transaction.`;
+    const row = await queueService(me, command.type, details);
+    return {
+      ok: true,
+      text: `${command.type} request queued for operator review. No funds were moved and no ledger transaction was posted. Request ${row?.id || 'created'}.`,
+    };
   }
 
   if (command.type === 'wallet' || command.type === 'ira') {

@@ -12,6 +12,8 @@
         "deposit",
         "withdrawal",
         "transfer",
+        "send",
+        "wire",
         "interest",
         "fee",
         "adjustment"
@@ -52,16 +54,23 @@
         "system"
       ],
       "default": "live",
-      "description": "Origin of the transaction \u2014 live (system-generated), historical_import (from uploaded statement), admin_entry (manual), system (automated)"
+      "description": "Origin of the transaction — live (system-generated), historical_import (from uploaded statement), admin_entry (manual), system (automated)"
     },
     "imported_statement_id": {
       "type": "string",
       "description": "Reference to the HistoricalStatement this was imported from (if source=historical_import)"
     },
+    "import_batch_id": {
+      "type": "string",
+      "description": "Reference to the TransactionImportBatch that created this historical import row"
+    },
     "status": {
       "type": "string",
       "enum": [
         "pending",
+        "processing",
+        "approved",
+        "declined",
         "completed",
         "failed",
         "reversed"
@@ -79,6 +88,20 @@
       ],
       "default": "",
       "description": "For transfer-type transactions: in=received, out=sent, internal=between own accounts, external=to/from another bank"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "counterparty": {
+      "type": "string"
+    },
+    "counterparty_user_id": {
+      "type": "string",
+      "description": "Verified recipient member user ID for internal member-to-member transfers"
+    },
+    "counterparty_account_id": {
+      "type": "string",
+      "description": "Destination account selected or resolved for an internal member transfer"
     }
   },
   "required": [

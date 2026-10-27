@@ -508,8 +508,15 @@ export default function AccountDetail() {
         <div className="grid grid-cols-2 gap-3 mb-6">
           <button
             onClick={async () => {
-              await base44.entities.Account.update(id, { status: account.status === 'frozen' ? 'active' : 'frozen' });
-              loadData();
+              try {
+                const result = await base44.functions.invoke('setAccountStatus', { account_id: id });
+                if (result?.data?.error) throw new Error(result.data.error);
+                if (!result?.data?.success) throw new Error('Account status change was not confirmed.');
+                await loadData();
+                toast({ title: result.data.status === 'frozen' ? 'Account frozen' : 'Account unfrozen' });
+              } catch (error) {
+                toast({ title: 'Account status update failed', description: error.message || 'Refresh and verify status before retrying.', variant: 'destructive' });
+              }
             }}
             className={`py-3 font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2 ${
               account.status === 'frozen'

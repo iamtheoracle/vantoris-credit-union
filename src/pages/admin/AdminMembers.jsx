@@ -3,16 +3,14 @@ import { base44 } from '@/api/base44Client';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { Users, Search, Plus, Wallet, Download, StickyNote, UserPlus, Trash2, History } from 'lucide-react';
 import MemberActivityFeed from '@/components/vantoris/MemberActivityFeed';
-import { generateAccountNumber } from '@/lib/formatCurrency';
 import { logAuditEntry } from '@/lib/auditLogger';
 import { exportToCsv } from '@/lib/exportCsv';
-import { sendTransactionEmail } from '@/lib/transactionEmails';
 import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import InviteUserDialog from '@/components/vantoris/InviteUserDialog';
 
-const ACCOUNT_TYPES = ['Personal', 'Joint', 'Business', 'Organization'];
+const ACCOUNT_TYPES = ['Checking', 'Savings', 'Money Market', 'CD', 'Joint', 'Business'];
 
 export default function AdminMembers() {
   const [users, setUsers] = useState([]);
@@ -20,14 +18,13 @@ export default function AdminMembers() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(null);
-  const [acctForm, setAcctForm] = useState({ account_type: 'Personal', account_name: '', opening_balance: '' });
+  const [acctForm, setAcctForm] = useState({ account_type: 'Checking', account_name: '', opening_balance: '' });
   const [creating, setCreating] = useState(false);
   const [notesMember, setNotesMember] = useState(null);
   const [notesText, setNotesText] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
   const [activityMember, setActivityMember] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const { toast } = useToast();
@@ -48,29 +45,14 @@ export default function AdminMembers() {
 
   async function handleDeleteMember() {
     if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      // Delete member's accounts and transactions first
-      const memberAccts = accounts.filter(a => a.user_id === deleteTarget.id);
-      for (const acct of memberAccts) {
-        await base44.entities.Transaction.deleteMany({ account_id: acct.id });
-        await base44.entities.Account.delete(acct.id);
-      }
-      await base44.entities.User.delete(deleteTarget.id);
-      await logAuditEntry({
-        action_type: 'account_deleted',
-        description: `Deleted member ${deleteTarget.full_name} (${deleteTarget.email})`,
-        details: `Email: ${deleteTarget.email} | All accounts, transactions, and associated data permanently removed`,
-        target_user_id: deleteTarget.id,
-      });
-      setDeleteTarget(null);
-      loadData();
-      toast({ title: 'Member deleted', description: `${deleteTarget.full_name} and all associated data have been removed.` });
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Delete failed', description: e.message || 'Unable to delete member.', variant: 'destructive' });
-    }
-    setDeleting(false);
+    // Financial records and audit history must not be deleted through this client screen.
+    // A compliant retention/deactivation workflow is not implemented in this repository.
+    toast({
+      title: 'Permanent deletion blocked',
+      description: 'Member deletion is disabled until a retention-aware deactivation workflow is available. Financial accounts, transactions, applications, and audit history must not be erased from this screen.',
+      variant: 'destructive',
+    });
+    setDeleteTarget(null);
   }
 
   if (loading) {
@@ -83,59 +65,34 @@ export default function AdminMembers() {
     if (!showCreate) return;
     setCreating(true);
     try {
-      const acctNum = generateAccountNumber();
-      const balance = parseFloat(acctForm.opening_balance) || 0;
-      const account = await base44.entities.Account.create({
+      const balance = acctForm.opening_balance.trim() === '' ? 0 : Number(acctForm.opening_balance);
+      if (!Number.isFinite(balance) || balance !== 0) {
+        throw new Error('New accounts start at zero. Record a deposit only after funds are verified and settled.');
+      }
+
+      const result = await base44.functions.invoke('generateAccount', {
         user_id: showCreate.id,
-        account_number: acctNum,
         account_type: acctForm.account_type,
         account_name: acctForm.account_name || `${showCreate.full_name} - ${acctForm.account_type}`,
-        balance: balance,
-        status: 'active',
+        opening_balance: 0,
       });
-      if (balance > 0) {
-        await base44.entities.Transaction.create({
-          account_id: account.id,
-          type: 'opening_balance',
-          amount: balance,
-          description: 'Opening Balance',
-          balance_after: balance,
-          created_by_admin: true,
-        });
-        await sendTransactionEmail({
-          user_id: showCreate.id,
-          account,
-          type: 'opening_balance',
-          amount: balance,
-          description: 'Opening Balance',
-          newBalance: balance,
-        });
-      }
-      await base44.entities.Notification.create({
-        user_id: showCreate.id,
-        title: 'New Account Created',
-        message: `A ${acctForm.account_type} account has been created for you. Account: ${acctNum}`,
-        type: 'success',
-      });
-      await logAuditEntry({
-        action_type: 'account_created',
-        description: `Created ${acctForm.account_type} account ${acctNum} for ${showCreate.full_name}`,
-        details: `Opening balance: ${formatCurrency(balance)}`,
-        account_id: account.id,
-        amount: balance,
-        balance_before: 0,
-        balance_after: balance,
-        target_user_id: showCreate.id,
-      });
+      if (result?.data?.error) throw new Error(result.data.error);
+      if (!result?.data?.success) throw new Error('Account creation was not confirmed. Refresh the member before retrying.');
+
       setShowCreate(null);
-      setAcctForm({ account_type: 'Personal', account_name: '', opening_balance: '' });
-      loadData();
-      toast({ title: 'Account created', description: `${acctForm.account_type} account created for ${showCreate.full_name}.` });
+      setAcctForm({ account_type: 'Checking', account_name: '', opening_balance: '' });
+      await loadData();
+      toast({
+        title: result.data.existing_account ? 'Account already exists' : 'Account created',
+        description: `${acctForm.account_type} account created for ${showCreate.full_name} at zero balance.`,
+      });
     } catch (e) {
       console.error(e);
-      toast({ title: 'Create failed', description: e.message || 'Unable to create account.', variant: 'destructive' });
+      toast({ title: 'Account creation requires review', description: e.message || 'Check account status before retrying.', variant: 'destructive' });
+      await loadData().catch(() => {});
+    } finally {
+      setCreating(false);
     }
-    setCreating(false);
   }
 
   function handleExportMembers() {
@@ -489,16 +446,15 @@ export default function AdminMembers() {
           {deleteTarget && (
             <div className="space-y-4 mt-2">
               <p className="text-[#AAB4C3] text-sm">
-                Are you sure you want to permanently delete <span className="text-white font-medium">{deleteTarget.full_name}</span> ({deleteTarget.email})?
-                This will also remove all their accounts, transactions, and associated data. This action cannot be undone.
+                Permanent deletion is disabled. This member's financial accounts, transactions, applications, and audit history must be preserved until a retention-aware deactivation workflow is implemented.
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={handleDeleteMember}
-                  disabled={deleting}
+                  disabled
                   className="flex-1 py-3 bg-crimson text-white font-semibold rounded-xl disabled:opacity-40 flex items-center justify-center gap-2"
                 >
-                  <Trash2 size={16} /> {deleting ? 'Deleting...' : 'Delete Permanently'}
+                  <Trash2 size={16} /> Deletion Disabled
                 </button>
                 <button
                   onClick={() => setDeleteTarget(null)}

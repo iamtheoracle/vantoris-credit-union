@@ -31,8 +31,10 @@
       "enum": [
         "not_started",
         "pending",
+        "processing",
         "approved",
-        "rejected"
+        "rejected",
+        "reconciliation_required"
       ],
       "default": "not_started"
     },

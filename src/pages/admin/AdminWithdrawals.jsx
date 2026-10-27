@@ -14,7 +14,7 @@ import { sendTransactionEmail } from '@/lib/transactionEmails';
 import { useToast } from '@/components/ui/use-toast';
 import { Link } from 'react-router-dom';
 
-const STATUS_FILTERS = ['all', 'pending', 'paid', 'rejected'];
+const STATUS_FILTERS = ['all', 'pending', 'processing', 'paid', 'rejected', 'reconciliation_required'];
 const METHOD_FILTERS = ['All Methods', 'ACH Transfer', 'Domestic Wire', 'International Wire', 'External Transfer', 'Check by Mail', "Cashier's Check"];
 const BULK_ACTIONS = [
   { id: 'pay', label: 'Approve', icon: Check, color: 'bg-mint text-white hover:bg-mint/90' },
@@ -121,45 +121,45 @@ export default function AdminWithdrawals() {
     setSelectedIds(filteredWithdrawals.filter(w => w.status === 'pending').map(w => w.id));
   }
 
-  async function payOne(wd, notes, startingBalance) {
+  async function payOne(wd, notes) {
+    const result = await base44.functions.invoke('processWithdrawalRequest', {
+      withdrawal_request_id: wd.id,
+      decision: 'approve',
+      admin_notes: notes || '',
+    });
+    if (result?.data?.error) throw new Error(result.data.error);
+    if (!result?.data?.success || result?.data?.status !== 'paid') {
+      throw new Error('Withdrawal outcome was not confirmed. Check the request status before retrying.');
+    }
+
+    // Email is best-effort and must not turn a confirmed posting into a reported payment failure.
     const account = getAccount(wd.account_id);
-    const currentBalance = startingBalance !== undefined ? startingBalance : (account?.balance || 0);
-    const newBalance = currentBalance - Math.abs(wd.amount);
-    await base44.entities.Transaction.create({
-      account_id: wd.account_id, type: 'withdrawal', amount: -Math.abs(wd.amount),
-      description: `Withdrawal - ${wd.method}`, reference: `WD-${wd.id.slice(-6)}`,
-      balance_after: newBalance, created_by_admin: true,
-    });
-    await base44.entities.Account.update(wd.account_id, { balance: newBalance });
-    await base44.entities.WithdrawalRequest.update(wd.id, { status: 'paid', admin_notes: notes });
-    await base44.entities.Notification.create({
-      user_id: wd.user_id, title: 'Withdrawal Processed',
-      message: `Your withdrawal of ${formatCurrency(Math.abs(wd.amount))} via ${wd.method} has been processed.`,
-      type: 'success',
-    });
-    await sendTransactionEmail({ user_id: wd.user_id, account, type: 'withdrawal', amount: Math.abs(wd.amount), description: `Withdrawal - ${wd.method}`, newBalance });
-    await logAuditEntry({
-      action_type: 'withdrawal_processed',
-      description: `Withdrawal processed: ${formatCurrency(Math.abs(wd.amount))} via ${wd.method}`,
-      details: `Request ID: ${wd.id}, Notes: ${notes || 'None'}`,
-      account_id: wd.account_id, amount: -Math.abs(wd.amount),
-      balance_before: currentBalance, balance_after: newBalance, target_user_id: wd.user_id,
-    });
+    if (account) {
+      try {
+        await sendTransactionEmail({
+          user_id: wd.user_id,
+          account,
+          type: 'withdrawal',
+          amount: Math.abs(wd.amount),
+          description: `Withdrawal - ${wd.method}`,
+          newBalance: result.data.balance_after,
+        });
+      } catch (emailError) {
+        console.error('Withdrawal posted, but transaction email failed:', emailError);
+      }
+    }
   }
 
   async function rejectOne(wd, notes) {
-    await base44.entities.WithdrawalRequest.update(wd.id, { status: 'rejected', admin_notes: notes });
-    await base44.entities.Notification.create({
-      user_id: wd.user_id, title: 'Withdrawal Rejected',
-      message: `Your withdrawal request of ${formatCurrency(Math.abs(wd.amount))} was not approved. ${notes || ''}`,
-      type: 'warning',
+    const result = await base44.functions.invoke('processWithdrawalRequest', {
+      withdrawal_request_id: wd.id,
+      decision: 'decline',
+      admin_notes: notes || '',
     });
-    await logAuditEntry({
-      action_type: 'withdrawal_rejected',
-      description: `Withdrawal rejected: ${formatCurrency(Math.abs(wd.amount))} via ${wd.method}`,
-      details: `Request ID: ${wd.id}, Reason: ${notes || 'No reason provided'}`,
-      account_id: wd.account_id, amount: -Math.abs(wd.amount), target_user_id: wd.user_id,
-    });
+    if (result?.data?.error) throw new Error(result.data.error);
+    if (!result?.data?.success || result?.data?.status !== 'rejected') {
+      throw new Error('Withdrawal rejection was not confirmed. Refresh the request before retrying.');
+    }
   }
 
   async function handlePay() {
@@ -191,7 +191,6 @@ export default function AdminWithdrawals() {
   async function executeBulkAction() {
     if (!bulkAction || selectedIds.length === 0) return;
     setSubmitting(true);
-    const balanceMap = {};
     let ok = 0, fail = 0;
     const isPay = bulkAction === 'pay';
     const isReject = bulkAction === 'reject';
@@ -200,10 +199,7 @@ export default function AdminWithdrawals() {
       if (!wd) continue;
       try {
         if (isPay) {
-          const acct = getAccount(wd.account_id);
-          const baseBalance = balanceMap[wd.account_id] !== undefined ? balanceMap[wd.account_id] : (acct?.balance || 0);
-          await payOne(wd, bulkNotes || 'Bulk approved', baseBalance);
-          balanceMap[wd.account_id] = baseBalance - Math.abs(wd.amount);
+          await payOne(wd, bulkNotes || 'Bulk approved');
         } else if (isReject) {
           await rejectOne(wd, bulkNotes || 'Bulk rejected');
         } else {

@@ -29,8 +29,10 @@
       "type": "string",
       "enum": [
         "pending",
+        "processing",
         "paid",
-        "rejected"
+        "rejected",
+        "reconciliation_required"
       ],
       "default": "pending"
     },
