@@ -1,18 +1,35 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 Deno.serve(async (req) => {
+  if (req.method !== 'POST') {
+    return Response.json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { description, type, context } = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return Response.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    const { description, type, context } = body;
 
-    if (!description) {
+    if (typeof description !== 'string' || !description.trim()) {
       return Response.json({ error: 'A description of what to build is required' }, { status: 400 });
     }
+    if (description.length > 12000) {
+      return Response.json({ error: 'Description exceeds the 12,000-character limit' }, { status: 413 });
+    }
+    if (context != null && (typeof context !== 'string' || context.length > 8000)) {
+      return Response.json({ error: 'Context must be text and no longer than 8,000 characters' }, { status: 400 });
+    }
+    if (type != null && (typeof type !== 'string' || type.length > 60)) {
+      return Response.json({ error: 'Artifact type must be text and no longer than 60 characters' }, { status: 400 });
+    }
 
-    const artifactType = type || 'component';
+    const artifactType = type?.trim() || 'component';
 
     const prompt = `You are an expert full-stack engineer building apps on a React + Tailwind CSS + Vite stack with shadcn/ui components and lucide-react icons.
 
