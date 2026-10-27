@@ -179,62 +179,57 @@ export default function AdminAccounts() {
     if (!file) return;
     setImporting(true);
     try {
-      const text = await file.text();
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-      
-      if (lines.length < 2) {
-        alert('CSV must have header row and at least one transaction');
-        setImporting(false);
-        return;
-      }
+      const csvText = await file.text();
+      const lines = csvText.split('\n').map(line => line.trim()).filter(Boolean);
+      if (lines.length < 2) throw new Error('CSV must include a header and at least one transaction.');
 
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      // The server performs authoritative validation, idempotency, account status
+      // checks, ledger posting and reconciliation tracking for this legacy import UI.
+      const headers = lines[0].split(',').map(header => header.trim().toLowerCase());
       const dateIdx = headers.indexOf('date');
       const typeIdx = headers.indexOf('type');
       const descIdx = headers.indexOf('description');
       const refIdx = headers.indexOf('reference');
       const amountIdx = headers.indexOf('amount');
       const accountIdx = headers.indexOf('account_number');
-
-      if (dateIdx === -1 || typeIdx === -1 || amountIdx === -1 || accountIdx === -1) {
-        alert('CSV must have columns: date, type, amount, account_number (description and reference optional)');
-        setImporting(false);
-        return;
+      if ([dateIdx, typeIdx, amountIdx, accountIdx].some(index => index < 0)) {
+        throw new Error('CSV must include date, type, amount, and account_number columns.');
       }
 
-      let imported = 0;
+      const rows = [];
       for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(',').map(p => p.trim());
-        const accountNum = parts[accountIdx];
-        const account = accounts.find(a => a.account_number === accountNum);
-        if (!account) {
-          console.warn(`Account ${accountNum} not found, skipping row ${i}`);
-          continue;
-        }
-
-        const txnData = {
-          account_id: account.id,
-          type: parts[typeIdx],
-          amount: parseFloat(parts[amountIdx]),
+        const parts = lines[i].split(',').map(part => part.trim());
+        rows.push({
+          transaction_date: parts[dateIdx] || '',
+          type: parts[typeIdx] || '',
           description: descIdx >= 0 ? parts[descIdx] || '' : '',
           reference: refIdx >= 0 ? parts[refIdx] || '' : '',
-          balance_after: account.balance,
-          created_by_admin: true,
-          transaction_date: dateIdx >= 0 ? parts[dateIdx] : undefined,
-        };
-
-        await base44.entities.Transaction.create(txnData);
-        imported++;
+          amount: parts[amountIdx],
+          account_number: parts[accountIdx] || '',
+        });
       }
 
-      alert(`Successfully imported ${imported} transactions`);
+      const result = await base44.functions.invoke('bulkImportTransactions', { transactions: rows });
+      if (result?.data?.error) throw new Error(result.data.error);
+      const data = result?.data || {};
+      const createdCount = Array.isArray(data.created) ? data.created.length : (data.created_count || 0);
+      const errorCount = (data.errors?.length || 0) + (data.skipped?.length || 0);
       setShowImport(false);
-      loadAccounts();
+      await loadAccounts();
+      toast({
+        title: data.idempotent_replay ? 'Import result recovered' : 'Import processed',
+        description: `${createdCount} rows posted; ${errorCount} skipped or require review. Batch: ${data.batch_id || 'see server result'}.`,
+      });
     } catch (e) {
       console.error(e);
-      toast({ title: 'Import failed', description: e.message || 'Unable to import transactions.', variant: 'destructive' });
+      toast({
+        title: 'Import requires review',
+        description: e.message || 'Check the import batch status before retrying to avoid duplicate posting.',
+        variant: 'destructive',
+      });
+    } finally {
+      setImporting(false);
     }
-    setImporting(false);
   }
 
   if (loading) {
