@@ -94,6 +94,14 @@
     },
     "counterparty": {
       "type": "string"
+    },
+    "counterparty_user_id": {
+      "type": "string",
+      "description": "Verified recipient member user ID for internal member-to-member transfers"
+    },
+    "counterparty_account_id": {
+      "type": "string",
+      "description": "Destination account selected or resolved for an internal member transfer"
     }
   },
   "required": [
